@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AMAZON VLAB Virtual Labor Assignment Board – Headcount Portal</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <!-- Header Zone -->
+  <header class="bg-gray-900 text-orange-500 py-4 text-center text-xl font-bold">
+    AMAZON VLAB Virtual Labor Assignment Board – Headcount Portal
+  </header>
+  <!-- Control Zone -->
+  <main class="flex flex-col items-center py-8">
+    <form id="laborForm" class="flex space-x-4 mb-4">
+      <input type="date" id="date" name="date" class="border p-2 rounded" required>
+      <select id="shift" name="shift" class="border p-2 rounded" required>
+        <option value="day">Day</option>
+        <option value="night">Night</option>
+      </select>
+      <select id="site" name="site" class="border p-2 rounded" required>
+        <option value="YHM2">YHM2</option>
+        <option value="YDD2">YDD2</option>
+      </select>
+      <input type="file" id="roster" name="roster" accept=".csv" class="border p-2 rounded" required>
+      <input type="file" id="swap" name="swap" accept=".csv" class="border p-2 rounded">
+      <input type="file" id="vetvto" name="vetvto" accept=".csv" class="border p-2 rounded">
+      <input type="file" id="laborshare" name="laborshare" accept=".csv" class="border p-2 rounded">
+      <button type="submit" class="bg-orange-500 text-white p-2 rounded">Submit</button>
+    </form>
+    <!-- Shift Type Bar -->
+    <div id="shiftTypeBar" class="mb-4 font-semibold"></div>
+    <!-- Output Zone -->
+    <div id="output" class="border rounded p-4 bg-white shadow w-full max-w-3xl"></div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
