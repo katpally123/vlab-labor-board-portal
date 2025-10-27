@@ -1,0 +1,13 @@
+/* Tailwind CSS is loaded via CDN in index.html. This file is used for any extra overrides or custom CSS. */
+.custom-badge {
+  background-color: #ff9900;
+  color: white;
+  border-radius: 4px;
+  padding: 0.2rem 0.7rem;
+  font-weight: bold;
+  font-size: 1rem;
+}
+.custom-output-label {
+  color: #ff9900;
+  font-weight: 600;
+}
