@@ -1,5 +1,5 @@
 // app.js for vlab-labor-board-portal
-// Handles form logic, file parsing, headcount calculation, and department/site filtering per requirements
+// Handles form logic, file parsing, headcount calculation, dept/site/shift filtering per requirements
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('laborForm');
@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Dept/area validation
   const yhm2DeptIDs = [1211010, 1211020, 1211030, 1211040, 1299010, 1299020, 1299030, 1299040];
   const ydd2DeptIDs = [1211070, 1299070];
+  // Split logic by shift pattern/shift code
+  const dayShiftCodes = ["DA","DB","DC","DL","DN","DH"];
+  const nightShiftCodes = ["NA","NB","NC","NL","NN","NH"];
 
   // Shift type logic mapping
   const shiftTypeMap = {
@@ -17,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   form.addEventListener('change', () => {
-    // Show detected shift code/type
     const date = form.date.value;
     const shift = form.shift.value;
     if (!date) return shiftTypeBar.textContent = "";
@@ -64,20 +66,32 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('vph').textContent = vph;
       });
     };
-    // Parse roster with filtering
+    // Parse roster with additional shift filtering
     Papa.parse(rosterFile, {
       header: true,
       dynamicTyping: true,
       complete: (results) => {
         const site = form.site.value;
+        const shift = form.shift.value;
+        // Shift pattern/shift code field possible names
+        const shiftFields = ["Shift Pattern","ShiftCode","Shift Code","Shift","Pattern"];
+        function getShiftCode(row) {
+          for (const field of shiftFields) {
+            if (row[field]) return String(row[field]).trim();
+          }
+          return "";
+        }
         const filtered = results.data.filter(row => {
           const deptID = Number(row.DepartmentID ?? row['Department ID'] ?? row['Dept ID']);
           const mgmtAreaID = Number(row.ManagementAreaID ?? row['Management Area ID']);
-          if (site === 'YHM2') {
-            return yhm2DeptIDs.includes(deptID);
+          const shiftCode = getShiftCode(row).toUpperCase();
+          if (site === 'YHM2' && yhm2DeptIDs.includes(deptID)) {
+            if (shift === 'day') return dayShiftCodes.includes(shiftCode);
+            if (shift === 'night') return nightShiftCodes.includes(shiftCode);
           }
-          if (site === 'YDD2') {
-            return ydd2DeptIDs.includes(deptID) && mgmtAreaID === 22;
+          if (site === 'YDD2' && ydd2DeptIDs.includes(deptID) && mgmtAreaID === 22) {
+            if (shift === 'day') return dayShiftCodes.includes(shiftCode);
+            if (shift === 'night') return nightShiftCodes.includes(shiftCode);
           }
           return false;
         });
