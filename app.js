@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   form.addEventListener('change', () => {
     const date = form.date.value;
-    const shift = form.shift.value;
+    const shift = form.querySelector('input[name="shift"]:checked')?.value || '';
     if (!date) return shiftTypeBar.textContent = "";
     const dow = new Date(date).getDay();
     const type = shiftTypeMap[shift][dow];
@@ -51,9 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class='flex space-x-4 items-center'>
           <span class='custom-output-label'>Date:</span> ${form.date.value}
           <span class='custom-output-label'>Day:</span> ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(form.date.value).getDay()]}
-          <span class='custom-output-label'>Shift:</span> ${form.shift.value}
+          <span class='custom-output-label'>Shift:</span> ${form.querySelector('input[name="shift"]:checked')?.value || ''}
           <span class='custom-output-label'>Site:</span> ${form.site.value}
-          <span class='custom-output-label'>Type:</span> ${shiftTypeMap[form.shift.value][new Date(form.date.value).getDay()]}
+          <span class='custom-output-label'>Type:</span> ${shiftTypeMap[form.querySelector('input[name="shift"]:checked')?.value || 'day'][new Date(form.date.value).getDay()]}
           <span class='custom-output-label'>Expected HC:</span> <span id='outHC'>${hcCalc}</span>
           <span class='custom-output-label'>Planned Volume:</span> </span>
         </div>
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
       dynamicTyping: true,
       complete: (results) => {
         const site = form.site.value;
-        const shift = form.shift.value;
+        const shift = form.querySelector('input[name="shift"]:checked')?.value || '';
         // Shift pattern/shift code field possible names
         const shiftFields = ["Shift Pattern","ShiftCode","Shift Code","Shift","Pattern"];
         function getShiftCode(row) {
