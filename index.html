@@ -2,60 +2,120 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AMAZON VLAB Virtual Labor Assignment Board – Headcount Portal</title>
+  <title>Amazon VLAB | Virtual Labor Assignment Board</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="styles.css" rel="stylesheet">
 </head>
-<body class="bg-gray-50 text-gray-900">
-  <!-- Header Zone -->
-  <header class="bg-gray-900 text-orange-500 py-4 text-center text-xl font-bold">
-    AMAZON VLAB Virtual Labor Assignment Board – Headcount Portal
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+  <!-- Header (mimic app bar) -->
+  <header class="flex items-center justify-between bg-white shadow px-6 py-4">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 bg-black text-white flex items-center justify-center text-xl font-bold rounded-full">A</div>
+      <div>
+        <div class="font-extrabold text-lg">Amazon VLAB</div>
+        <div class="text-xs text-gray-500">Virtual Labor Assignment Board</div>
+      </div>
+    </div>
+    <div class="space-x-2">
+      <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700">Settings</button>
+      <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700">Export Log</button>
+    </div>
   </header>
-  <!-- Control Zone -->
-  <main class="flex flex-col items-center py-8">
-    <form id="laborForm" class="flex space-x-4 mb-4 flex-wrap">
-      <div class="flex flex-col items-start">
-        <label for="date" class="mb-1 font-semibold">Date</label>
-        <input type="date" id="date" name="date" class="border p-2 rounded" required>
+  <main class="max-w-7xl mx-auto p-6">
+    <!-- Top Form Controls -->
+    <form id="laborForm" class="bg-white rounded shadow px-6 py-4 flex flex-wrap gap-6 items-end mb-4">
+      <div>
+        <label for="date" class="block font-semibold mb-1 text-sm">Date</label>
+        <input type="date" id="date" name="date" class="border p-2 rounded w-36" required>
       </div>
-      <div class="flex flex-col items-start">
-        <label for="shift" class="mb-1 font-semibold">Shift</label>
-        <select id="shift" name="shift" class="border p-2 rounded" required>
-          <option value="day">Day</option>
-          <option value="night">Night</option>
-        </select>
+      <div>
+        <label class="block font-semibold mb-1 text-sm">Shift</label>
+        <div class="flex items-center space-x-2">
+          <label class="inline-flex items-center"><input type="radio" name="shift" value="day" checked class="form-radio"><span class="ml-1">Day</span></label>
+          <label class="inline-flex items-center"><input type="radio" name="shift" value="night" class="form-radio"><span class="ml-1">Night</span></label>
+        </div>
       </div>
-      <div class="flex flex-col items-start">
-        <label for="site" class="mb-1 font-semibold">Site</label>
-        <select id="site" name="site" class="border p-2 rounded" required>
+      <div>
+        <label for="site" class="block font-semibold mb-1 text-sm">Site</label>
+        <select id="site" name="site" class="border p-2 rounded w-24" required>
           <option value="YHM2">YHM2</option>
           <option value="YDD2">YDD2</option>
         </select>
       </div>
-      <div class="flex flex-col items-start">
-        <label for="roster" class="mb-1 font-semibold">Roster CSV</label>
-        <input type="file" id="roster" name="roster" accept=".csv" class="border p-2 rounded" required>
+      <div>
+        <label class="block font-semibold mb-1 text-sm">Planned Volume</label>
+        <input id="plannedVolumeStub" placeholder="e.g., 52,000" class="border rounded p-2 w-32" type="number" min="0">
       </div>
-      <div class="flex flex-col items-start">
-        <label for="swap" class="mb-1 font-semibold">Swap CSV</label>
-        <input type="file" id="swap" name="swap" accept=".csv" class="border p-2 rounded">
+      <div class="flex flex-col space-y-1">
+        <label class="block font-semibold mb-1 text-sm">Uploads (one line)</label>
+        <div class="flex gap-1">
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Roster <input type="file" id="roster" name="roster" accept=".csv" class="hidden" required></label>
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Swaps <input type="file" id="swap" name="swap" accept=".csv" class="hidden"></label>
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">VET/VTO <input type="file" id="vetvto" name="vetvto" accept=".csv" class="hidden"></label>
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">LaborShare <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden"></label>
+        </div>
       </div>
-      <div class="flex flex-col items-start">
-        <label for="vetvto" class="mb-1 font-semibold">VET/VTO CSV</label>
-        <input type="file" id="vetvto" name="vetvto" accept=".csv" class="border p-2 rounded">
-      </div>
-      <div class="flex flex-col items-start">
-        <label for="laborshare" class="mb-1 font-semibold">Labor Share CSV</label>
-        <input type="file" id="laborshare" name="laborshare" accept=".csv" class="border p-2 rounded">
-      </div>
-      <div class="flex flex-col justify-end">
-        <button type="submit" class="bg-orange-500 text-white p-2 rounded mt-6">Submit</button>
-      </div>
+      <button type="submit" class="bg-gray-900 text-white font-semibold rounded px-6 py-2">Build Board</button>
     </form>
-    <!-- Shift Type Bar -->
-    <div id="shiftTypeBar" class="mb-4 font-semibold"></div>
+    <!-- Parameters row (static look only) -->
+    <div class="flex space-x-4 mb-6">
+      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Date</span><span class="ml-2" id="displayDate">-</span></div>
+      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Day</span><span class="ml-2" id="displayDay">-</span></div>
+      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Shift</span><span class="ml-2" id="displayShift">-</span></div>
+      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Shift Type</span><span class="ml-2" id="displayShiftType">-</span></div>
+      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Planned HC</span><span class="ml-2" id="displayPlannedHC">0</span></div>
+      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Actual HC</span><span class="ml-2" id="displayActualHC">0</span></div>
+    </div>
     <!-- Output Zone -->
-    <div id="output" class="border rounded p-4 bg-white shadow w-full max-w-3xl min-h-[60px]"></div>
+    <div id="output" class="my-2 min-h-[60px]"></div>
+    <!-- Dummy board grid placeholder matching look only -->
+    <div class="grid grid-cols-5 gap-4 mt-10">
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Unassigned</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">CB</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">IB WS</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Line Loaders</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Trickle</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Destination Markers</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">IDRT</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Pallet Build</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Each to Sort</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Dock WS</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">E2S WS</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Tote Pallet Build</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">Tote WS</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">SAP</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
+        <span class="font-semibold">AO/5S</span><span class="font-bold text-xl mt-6">0</span>
+      </div>
+    </div>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="app.js"></script>
