@@ -1,19 +1,19 @@
 // app.js for vlab-labor-board-portal
-// Handles form logic, file parsing, headcount calculation
+// Handles form logic, file parsing, headcount calculation, and department/site filtering per requirements
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('laborForm');
   const output = document.getElementById('output');
   const shiftTypeBar = document.getElementById('shiftTypeBar');
 
+  // Dept/area validation
+  const yhm2DeptIDs = [1211010, 1211020, 1211030, 1211040, 1299010, 1299020, 1299030, 1299040];
+  const ydd2DeptIDs = [1211070, 1299070];
+
   // Shift type logic mapping
   const shiftTypeMap = {
-    day: {
-      0: 'FHD', 1: 'FHD', 2: 'FHD', 3: 'FHD', 4: 'BHD', 5: 'BHD', 6: 'BHD'
-    },
-    night: {
-      0: 'FHN', 1: 'FHN', 2: 'FHN', 3: 'FHN', 4: 'BHN', 5: 'BHN', 6: 'BHN'
-    }
+    day: { 0: 'FHD', 1: 'FHD', 2: 'FHD', 3: 'FHD', 4: 'BHD', 5: 'BHD', 6: 'BHD' },
+    night: { 0: 'FHN', 1: 'FHN', 2: 'FHN', 3: 'FHN', 4: 'BHN', 5: 'BHN', 6: 'BHN' }
   };
 
   form.addEventListener('change', () => {
@@ -23,26 +23,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!date) return shiftTypeBar.textContent = "";
     const dow = new Date(date).getDay();
     const type = shiftTypeMap[shift][dow];
-    // Example: Monday (1), day => FHD
     shiftTypeBar.textContent = `Detected: ${type}`;
   });
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     output.textContent = 'Processing files...';
-    // Parse all files and output after submit only
     const rosterFile = form.roster.files[0];
     if (!rosterFile) {
       output.textContent = 'Roster file required.';
       return;
     }
-    // This function parses files and triggers output rendering after all are done
     let swapIN = 0, swapOUT = 0, vet = 0, vto = 0, shareIN = 0, shareOUT = 0;
-    let doneCount = 1; // Roster is always parsed
+    let doneCount = 1;
     const finish = (hcBase) => {
-      // All optionals are async, output after all finish
       if (++doneCount < 4) return;
-      // Compute HC
       const plannedVolumeNode = document.createElement('input');
       plannedVolumeNode.type = 'number';
       plannedVolumeNode.value = 0;
@@ -69,29 +64,38 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('vph').textContent = vph;
       });
     };
-    // Parse roster
+    // Parse roster with filtering
     Papa.parse(rosterFile, {
       header: true,
       dynamicTyping: true,
       complete: (results) => {
-        let baseCount = results.data.length;
-        finish(baseCount);
+        const site = form.site.value;
+        const filtered = results.data.filter(row => {
+          const deptID = Number(row.DepartmentID ?? row['Department ID'] ?? row['Dept ID']);
+          const mgmtAreaID = Number(row.ManagementAreaID ?? row['Management Area ID']);
+          if (site === 'YHM2') {
+            return yhm2DeptIDs.includes(deptID);
+          }
+          if (site === 'YDD2') {
+            return ydd2DeptIDs.includes(deptID) && mgmtAreaID === 22;
+          }
+          return false;
+        });
+        finish(filtered.length);
       }
     });
-    // Parse Swap
     if (form.swap.files[0]) {
       Papa.parse(form.swap.files[0], {
         header: true,
         complete: (swapResults) => {
           swapIN = swapResults.data.filter(r => r.Direction === 'IN').length;
           swapOUT = swapResults.data.filter(r => r.Direction === 'OUT').length;
-          finish(0); // 0 here, use hcBase from first
+          finish(0);
         }
       });
     } else {
       doneCount++;
     }
-    // Parse VET/VTO
     if (form.vetvto.files[0]) {
       Papa.parse(form.vetvto.files[0], {
         header: true,
@@ -104,7 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       doneCount++;
     }
-    // Parse Labor Share
     if (form.laborshare.files[0]) {
       Papa.parse(form.laborshare.files[0], {
         header: true,
