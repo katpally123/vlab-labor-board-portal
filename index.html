@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>AMAZON VLAB Virtual Labor Assignment Board – Headcount Portal</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="styles.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 text-gray-900">
   <!-- Header Zone -->
@@ -12,26 +13,49 @@
   </header>
   <!-- Control Zone -->
   <main class="flex flex-col items-center py-8">
-    <form id="laborForm" class="flex space-x-4 mb-4">
-      <input type="date" id="date" name="date" class="border p-2 rounded" required>
-      <select id="shift" name="shift" class="border p-2 rounded" required>
-        <option value="day">Day</option>
-        <option value="night">Night</option>
-      </select>
-      <select id="site" name="site" class="border p-2 rounded" required>
-        <option value="YHM2">YHM2</option>
-        <option value="YDD2">YDD2</option>
-      </select>
-      <input type="file" id="roster" name="roster" accept=".csv" class="border p-2 rounded" required>
-      <input type="file" id="swap" name="swap" accept=".csv" class="border p-2 rounded">
-      <input type="file" id="vetvto" name="vetvto" accept=".csv" class="border p-2 rounded">
-      <input type="file" id="laborshare" name="laborshare" accept=".csv" class="border p-2 rounded">
-      <button type="submit" class="bg-orange-500 text-white p-2 rounded">Submit</button>
+    <form id="laborForm" class="flex space-x-4 mb-4 flex-wrap">
+      <div class="flex flex-col items-start">
+        <label for="date" class="mb-1 font-semibold">Date</label>
+        <input type="date" id="date" name="date" class="border p-2 rounded" required>
+      </div>
+      <div class="flex flex-col items-start">
+        <label for="shift" class="mb-1 font-semibold">Shift</label>
+        <select id="shift" name="shift" class="border p-2 rounded" required>
+          <option value="day">Day</option>
+          <option value="night">Night</option>
+        </select>
+      </div>
+      <div class="flex flex-col items-start">
+        <label for="site" class="mb-1 font-semibold">Site</label>
+        <select id="site" name="site" class="border p-2 rounded" required>
+          <option value="YHM2">YHM2</option>
+          <option value="YDD2">YDD2</option>
+        </select>
+      </div>
+      <div class="flex flex-col items-start">
+        <label for="roster" class="mb-1 font-semibold">Roster CSV</label>
+        <input type="file" id="roster" name="roster" accept=".csv" class="border p-2 rounded" required>
+      </div>
+      <div class="flex flex-col items-start">
+        <label for="swap" class="mb-1 font-semibold">Swap CSV</label>
+        <input type="file" id="swap" name="swap" accept=".csv" class="border p-2 rounded">
+      </div>
+      <div class="flex flex-col items-start">
+        <label for="vetvto" class="mb-1 font-semibold">VET/VTO CSV</label>
+        <input type="file" id="vetvto" name="vetvto" accept=".csv" class="border p-2 rounded">
+      </div>
+      <div class="flex flex-col items-start">
+        <label for="laborshare" class="mb-1 font-semibold">Labor Share CSV</label>
+        <input type="file" id="laborshare" name="laborshare" accept=".csv" class="border p-2 rounded">
+      </div>
+      <div class="flex flex-col justify-end">
+        <button type="submit" class="bg-orange-500 text-white p-2 rounded mt-6">Submit</button>
+      </div>
     </form>
     <!-- Shift Type Bar -->
     <div id="shiftTypeBar" class="mb-4 font-semibold"></div>
     <!-- Output Zone -->
-    <div id="output" class="border rounded p-4 bg-white shadow w-full max-w-3xl"></div>
+    <div id="output" class="border rounded p-4 bg-white shadow w-full max-w-3xl min-h-[60px]"></div>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="app.js"></script>
