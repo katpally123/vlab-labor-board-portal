@@ -31,8 +31,8 @@
       <div>
         <label class="block font-semibold mb-1 text-sm">Shift</label>
         <div class="flex items-center space-x-2">
-          <label class="inline-flex items-center"><input type="radio" name="shift" value="day" checked class="form-radio"><span class="ml-1">Day</span></label>
-          <label class="inline-flex items-center"><input type="radio" name="shift" value="night" class="form-radio"><span class="ml-1">Night</span></label>
+          <label class="inline-flex items-center"><input type="radio" name="shift" value="day" checked class="form-radio" id="shift-day"><span class="ml-1">Day</span></label>
+          <label class="inline-flex items-center"><input type="radio" name="shift" value="night" class="form-radio" id="shift-night"><span class="ml-1">Night</span></label>
         </div>
       </div>
       <div>
@@ -48,16 +48,16 @@
       </div>
       <div class="flex flex-col space-y-1">
         <label class="block font-semibold mb-1 text-sm">Uploads (one line)</label>
-        <div class="flex gap-1">
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Roster <input type="file" id="roster" name="roster" accept=".csv" class="hidden" required></label>
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Swaps <input type="file" id="swap" name="swap" accept=".csv" class="hidden"></label>
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">VET/VTO <input type="file" id="vetvto" name="vetvto" accept=".csv" class="hidden"></label>
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">LaborShare <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden"></label>
+        <div id="fileZone" class="flex gap-1">
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Roster <input type="file" id="roster" name="roster" accept=".csv" class="hidden" required><span class="ml-2 file-label" id="label-roster"></span></label>
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Swaps <input type="file" id="swap" name="swap" accept=".csv" class="hidden"><span class="ml-2 file-label" id="label-swap"></span></label>
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">VET/VTO <input type="file" id="vetvto" name="vetvto" accept=".csv" class="hidden"><span class="ml-2 file-label" id="label-vetvto"></span></label>
+          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">LaborShare <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden"><span class="ml-2 file-label" id="label-laborshare"></span></label>
         </div>
       </div>
       <button type="submit" class="bg-gray-900 text-white font-semibold rounded px-6 py-2">Build Board</button>
     </form>
-    <!-- Parameters row (static look only) -->
+    <!-- ... Remainder unchanged ... -->
     <div class="flex space-x-4 mb-6">
       <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Date</span><span class="ml-2" id="displayDate">-</span></div>
       <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Day</span><span class="ml-2" id="displayDay">-</span></div>
@@ -66,9 +66,7 @@
       <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Planned HC</span><span class="ml-2" id="displayPlannedHC">0</span></div>
       <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Actual HC</span><span class="ml-2" id="displayActualHC">0</span></div>
     </div>
-    <!-- Output Zone -->
     <div id="output" class="my-2 min-h-[60px]"></div>
-    <!-- Dummy board grid placeholder matching look only -->
     <div class="grid grid-cols-5 gap-4 mt-10">
       <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
         <span class="font-semibold">Unassigned</span><span class="font-bold text-xl mt-6">0</span>
@@ -119,5 +117,21 @@
   </main>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="app.js"></script>
+  <script>
+    // Show file name after upload
+    ['roster','swap','vetvto','laborshare'].forEach(function(inputId) {
+      var input = document.getElementById(inputId);
+      var label = document.getElementById('label-' + inputId);
+      if (input) {
+        input.addEventListener('change', function(e) {
+          if (input.files && input.files.length) {
+            label.textContent = input.files[0].name;
+          } else {
+            label.textContent = '';
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>
