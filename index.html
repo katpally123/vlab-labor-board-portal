@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Amazon VLAB | Virtual Labor Assignment Board</title>
+
+  <!-- Tailwind for layout -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- App styles -->
   <link href="styles.css" rel="stylesheet">
 </head>
+
 <body class="bg-gray-50 text-gray-900 min-h-screen">
+  <!-- Header -->
   <header class="flex items-center justify-between bg-white shadow px-6 py-4">
     <div class="flex items-center space-x-3">
       <div class="w-10 h-10 bg-black text-white flex items-center justify-center text-xl font-bold rounded-full">A</div>
@@ -17,117 +22,135 @@
     </div>
     <div class="space-x-2">
       <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700">Settings</button>
-      <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700">Export Log</button>
+      <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700" id="exportLogBtn">Export Log</button>
     </div>
   </header>
+
   <main class="max-w-7xl mx-auto p-6">
+    <!-- Controls -->
     <form id="laborForm" class="bg-white rounded shadow px-6 py-4 flex flex-wrap gap-6 items-end mb-4">
       <div>
         <label for="date" class="block font-semibold mb-1 text-sm">Date</label>
-        <input type="date" id="date" name="date" class="border p-2 rounded w-36" required>
+        <input type="date" id="date" name="date" class="border p-2 rounded w-40" required>
       </div>
+
       <div>
         <label class="block font-semibold mb-1 text-sm">Shift</label>
-        <div class="flex items-center space-x-2">
-          <label class="inline-flex items-center"><input type="radio" name="shift" value="day" checked class="form-radio" id="shift-day"><span class="ml-1">Day</span></label>
-          <label class="inline-flex items-center"><input type="radio" name="shift" value="night" class="form-radio" id="shift-night"><span class="ml-1">Night</span></label>
+        <div class="flex items-center space-x-3">
+          <label class="inline-flex items-center">
+            <input type="radio" name="shift" value="day" checked class="form-radio" id="shift-day">
+            <span class="ml-1">Day</span>
+          </label>
+          <label class="inline-flex items-center">
+            <input type="radio" name="shift" value="night" class="form-radio" id="shift-night">
+            <span class="ml-1">Night</span>
+          </label>
         </div>
       </div>
+
       <div>
         <label for="site" class="block font-semibold mb-1 text-sm">Site</label>
-        <select id="site" name="site" class="border p-2 rounded w-24" required>
+        <select id="site" name="site" class="border p-2 rounded w-28" required>
           <option value="YHM2">YHM2</option>
           <option value="YDD2">YDD2</option>
         </select>
       </div>
+
       <div>
         <label class="block font-semibold mb-1 text-sm">Planned Volume</label>
-        <input id="plannedVolumeStub" placeholder="e.g., 52,000" class="border rounded p-2 w-32" type="number" min="0">
+        <input id="plannedVolumeStub" placeholder="e.g., 52000" class="border rounded p-2 w-36" type="number" min="0">
       </div>
+
+      <!-- One-line uploads -->
       <div class="flex flex-col space-y-1">
         <label class="block font-semibold mb-1 text-sm">Uploads (one line)</label>
-        <div id="fileZone" class="flex gap-1">
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Roster <input type="file" id="roster" name="roster" accept=".csv" class="hidden" required><span class="ml-2 file-label" id="label-roster"></span></label>
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">Swaps <input type="file" id="swap" name="swap" accept=".csv" class="hidden"><span class="ml-2 file-label" id="label-swap"></span></label>
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">VET/VTO <input type="file" id="vetvto" name="vetvto" accept=".csv" class="hidden"><span class="ml-2 file-label" id="label-vetvto"></span></label>
-          <label class="bg-gray-100 border border-gray-300 px-2 py-1 rounded flex items-center cursor-pointer text-xs font-semibold">LaborShare <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden"><span class="ml-2 file-label" id="label-laborshare"></span></label>
+        <div id="fileZone" class="flex gap-1 flex-wrap">
+          <label class="pill-label">Roster
+            <input type="file" id="roster" name="roster" accept=".csv" class="hidden" required>
+            <span class="ml-2 file-label" id="label-roster"></span>
+          </label>
+          <label class="pill-label">Swaps
+            <input type="file" id="swap" name="swap" accept=".csv" class="hidden">
+            <span class="ml-2 file-label" id="label-swap"></span>
+          </label>
+          <label class="pill-label">VET/VTO
+            <input type="file" id="vetvto" name="vetvto" accept=".csv" class="hidden">
+            <span class="ml-2 file-label" id="label-vetvto"></span>
+          </label>
+          <label class="pill-label">LaborShare
+            <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden">
+            <span class="ml-2 file-label" id="label-laborshare"></span>
+          </label>
         </div>
       </div>
+
       <button type="submit" class="bg-gray-900 text-white font-semibold rounded px-6 py-2">Build Board</button>
     </form>
-    <div class="flex space-x-4 mb-6">
-      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Date</span><span class="ml-2" id="displayDate">-</span></div>
-      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Day</span><span class="ml-2" id="displayDay">-</span></div>
-      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Shift</span><span class="ml-2" id="displayShift">-</span></div>
-      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Shift Type</span><span class="ml-2" id="displayShiftType">-</span></div>
-      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Planned HC</span><span class="ml-2" id="displayPlannedHC">0</span></div>
-      <div class="px-2 py-1 bg-gray-100 rounded flex-shrink-0"><span class="font-medium">Actual HC</span><span class="ml-2" id="displayActualHC">0</span></div>
+
+    <!-- Summary row (7 columns) -->
+    <div class="flex flex-wrap gap-3 mb-4">
+      <div class="chip"><span class="font-medium">Date</span><span class="ml-2" id="displayDate">-</span></div>
+      <div class="chip"><span class="font-medium">Day</span><span class="ml-2" id="displayDay">-</span></div>
+      <div class="chip"><span class="font-medium">Shift</span><span class="ml-2" id="displayShift">-</span></div>
+      <div class="chip"><span class="font-medium">Shift Type</span><span class="ml-2" id="displayShiftType">-</span></div>
+      <div class="chip"><span class="font-medium">Site</span><span class="ml-2" id="displaySite">-</span></div>
+      <div class="chip"><span class="font-medium">Planned HC</span><span class="ml-2" id="displayPlannedHC">0</span></div>
+      <div class="chip"><span class="font-medium">Actual HC</span><span class="ml-2" id="displayActualHC">0</span></div>
     </div>
+
+    <!-- Codes bar (compact) -->
+    <div id="codesBar" class="hidden text-xs text-gray-600 mb-6"></div>
+
+    <!-- NEW: Unassigned header strip with overlapping badges -->
+    <section class="mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-semibold">Unassigned</h2>
+        <div class="text-xs text-gray-600">
+          <span id="unassignedCount">0</span>
+        </div>
+      </div>
+      <div id="unassignedBadges" class="overlap-wrap"></div>
+    </section>
+
+    <!-- Output / messages -->
     <div id="output" class="my-2 min-h-[60px]"></div>
-    <div class="grid grid-cols-5 gap-4 mt-10">
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Unassigned</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">CB</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">IB WS</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Line Loaders</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Trickle</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Destination Markers</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">IDRT</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Pallet Build</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Each to Sort</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Dock WS</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">E2S WS</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Tote Pallet Build</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">Tote WS</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">SAP</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
-      <div class="border bg-white rounded-xl min-h-[132px] p-4 flex flex-col items-start justify-between" style="min-width:160px;">
-        <span class="font-semibold">AO/5S</span><span class="font-bold text-xl mt-6">0</span>
-      </div>
+
+    <!-- Board boxes (keep layout as in your screenshot) -->
+    <div class="grid grid-cols-5 gap-4 mt-6">
+      <div class="board-card"><span class="font-semibold">Unassigned</span><span class="board-count" id="tile-unassigned">0</span></div>
+      <div class="board-card"><span class="font-semibold">CB</span><span class="board-count" id="tile-cb">0</span></div>
+      <div class="board-card"><span class="font-semibold">IB WS</span><span class="board-count" id="tile-ibws">0</span></div>
+      <div class="board-card"><span class="font-semibold">Line Loaders</span><span class="board-count" id="tile-lineloaders">0</span></div>
+      <div class="board-card"><span class="font-semibold">Trickle</span><span class="board-count" id="tile-trickle">0</span></div>
+
+      <div class="board-card"><span class="font-semibold">Destination Markers</span><span class="board-count" id="tile-dm">0</span></div>
+      <div class="board-card"><span class="font-semibold">IDRT</span><span class="board-count" id="tile-idrt">0</span></div>
+      <div class="board-card"><span class="font-semibold">Pallet Build</span><span class="board-count" id="tile-pb">0</span></div>
+      <div class="board-card"><span class="font-semibold">Each to Sort</span><span class="board-count" id="tile-e2s">0</span></div>
+      <div class="board-card"><span class="font-semibold">Dock WS</span><span class="board-count" id="tile-dockws">0</span></div>
+
+      <div class="board-card"><span class="font-semibold">E2S WS</span><span class="board-count" id="tile-e2sws">0</span></div>
+      <div class="board-card"><span class="font-semibold">Tote Pallet Build</span><span class="board-count" id="tile-tpb">0</span></div>
+      <div class="board-card"><span class="font-semibold">Tote WS</span><span class="board-count" id="tile-tws">0</span></div>
+      <div class="board-card"><span class="font-semibold">SAP</span><span class="board-count" id="tile-sap">0</span></div>
+      <div class="board-card"><span class="font-semibold">AO/5S</span><span class="board-count" id="tile-ao5s">0</span></div>
     </div>
   </main>
+
+  <!-- CSV parser -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- App logic -->
   <script src="app.js"></script>
+
   <script>
-    // Show file name after upload
-    ['roster','swap','vetvto','laborshare'].forEach(function(inputId) {
-      var input = document.getElementById(inputId);
-      var label = document.getElementById('label-' + inputId);
-      if (input) {
-        input.addEventListener('change', function(e) {
-          if (input.files && input.files.length) {
-            label.textContent = input.files[0].name;
-          } else {
-            label.textContent = '';
-          }
-        });
-      }
+    // Show file names
+    ['roster','swap','vetvto','laborshare'].forEach(function(id) {
+      const input = document.getElementById(id);
+      const label = document.getElementById('label-'+id);
+      if (!input) return;
+      input.addEventListener('change', () => {
+        label.textContent = (input.files && input.files[0]) ? input.files[0].name : '';
+      });
     });
   </script>
 </body>
