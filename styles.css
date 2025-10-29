@@ -1,13 +1,54 @@
-/* Tailwind CSS is loaded via CDN in index.html. This file is used for any extra overrides or custom CSS. */
-.custom-badge {
-  background-color: #ff9900;
-  color: white;
-  border-radius: 4px;
-  padding: 0.2rem 0.7rem;
-  font-weight: bold;
-  font-size: 1rem;
+/* Small pill labels for file inputs */
+.pill-label{
+  background:#f7f7f7; border:1px solid #d1d5db; padding:.25rem .5rem;
+  border-radius:.375rem; font-size:.75rem; font-weight:600; cursor:pointer;
+  display:flex; align-items:center;
 }
-.custom-output-label {
-  color: #ff9900;
-  font-weight: 600;
+
+/* Compact chips for the summary row */
+.chip{
+  padding:.25rem .5rem; background:#f3f4f6; border-radius:.375rem; font-size:.85rem;
 }
+
+/* Board tiles */
+.board-card{
+  border:1px solid #e5e7eb; background:#fff; border-radius: .75rem;
+  min-height:132px; padding:1rem; display:flex; flex-direction:column;
+  justify-content:space-between; min-width:160px;
+}
+.board-count{ font-weight:700; font-size:1.25rem; margin-top:1rem; }
+
+/* Overlapping badge strip */
+.overlap-wrap{ display:flex; align-items:center; flex-wrap:nowrap; overflow-x:auto; padding:6px 2px; }
+.badge{
+  position:relative; padding:.35rem .55rem; font-size:.8rem; font-weight:700;
+  border-radius:.5rem; border:1px solid rgba(0,0,0,.08);
+  margin-left:-10px; /* overlap */
+  white-space:nowrap; user-select:none;
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
+  cursor:pointer; opacity:.85;
+}
+.badge:first-child{ margin-left:0; }
+
+/* Shift-code pastel backgrounds (accessible contrast for text) */
+.badge.DA, .badge.NA { background:#ddeeff; color:#0a2540; }
+.badge.DB, .badge.NB { background:#e3f6dc; color:#173a2f; }
+.badge.DC, .badge.NC { background:#ffeedc; color:#4a2b00; }
+.badge.DL, .badge.NL { background:#ece4fa; color:#241b4a; }
+.badge.DN, .badge.NN { background:#fff5f0; color:#5a1f08; }
+.badge.DH, .badge.NH { background:#e2e9ee; color:#102a43; }
+
+/* Presence tick */
+.badge.present{
+  outline:2px solid #059669; /* emerald */
+  opacity:1;
+}
+.badge .tick{
+  position:absolute; right:-6px; top:-6px;
+  background:#059669; color:white; width:16px; height:16px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:9999px; font-size:.7rem; font-weight:800;
+}
+
+/* Utility */
+.custom-output-label { color:#ff9900; font-weight:600; }
