@@ -101,22 +101,22 @@
     <!-- Codes bar (compact) -->
     <div id="codesBar" class="hidden text-xs text-gray-600 mb-6"></div>
 
-    <!-- NEW: Unassigned header strip with overlapping badges -->
-    <section class="mb-6">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold">Unassigned</h2>
-        <div class="text-xs text-gray-600">
-          <span id="unassignedCount">0</span>
+    <!-- Layout: left Unassigned sidebar + right board grid -->
+    <div class="flex gap-6 mt-6">
+      <aside id="leftPanel" class="w-64 bg-white border border-gray-200 rounded-xl p-3 h-[72vh] overflow-auto">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-semibold">Unassigned</h2>
+          <span class="text-xs text-gray-600" id="unassignedCount">0</span>
         </div>
-      </div>
-      <div id="unassignedBadges" class="overlap-wrap"></div>
-    </section>
+        <div id="unassignedStack" class="stack-column"></div>
+      </aside>
 
-    <!-- Output / messages -->
-    <div id="output" class="my-2 min-h-[60px]"></div>
+      <div class="flex-1">
+        <!-- Output / messages -->
+        <div id="output" class="my-2 min-h-[60px]"></div>
 
-    <!-- Board boxes (keep layout as in your screenshot) -->
-    <div class="grid grid-cols-5 gap-4 mt-6">
+        <!-- Board boxes (keep layout as in your screenshot) -->
+        <div class="grid grid-cols-5 gap-4">
       <div class="board-card"><span class="font-semibold">Unassigned</span><span class="board-count" id="tile-unassigned">0</span></div>
       <div class="board-card"><span class="font-semibold">CB</span><span class="board-count" id="tile-cb">0</span></div>
       <div class="board-card"><span class="font-semibold">IB WS</span><span class="board-count" id="tile-ibws">0</span></div>
@@ -134,6 +134,8 @@
       <div class="board-card"><span class="font-semibold">Tote WS</span><span class="board-count" id="tile-tws">0</span></div>
       <div class="board-card"><span class="font-semibold">SAP</span><span class="board-count" id="tile-sap">0</span></div>
       <div class="board-card"><span class="font-semibold">AO/5S</span><span class="board-count" id="tile-ao5s">0</span></div>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -149,7 +151,12 @@
       const label = document.getElementById('label-'+id);
       if (!input) return;
       input.addEventListener('change', () => {
-        label.textContent = (input.files && input.files[0]) ? input.files[0].name : '';
+        const name = (input.files && input.files[0]) ? input.files[0].name : '';
+        console.debug('[file-change]', id, 'files=', input.files, 'name=', name);
+        if (label) label.textContent = name;
+        // Keep a reference in case the input is later cleared by other DOM operations
+        window.__LAST_UPLOADS = window.__LAST_UPLOADS || {};
+        window.__LAST_UPLOADS[id] = (input.files && input.files[0]) ? input.files[0] : null;
       });
     });
   </script>
