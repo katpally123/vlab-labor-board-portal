@@ -36,6 +36,22 @@ document.addEventListener('DOMContentLoaded', () => {
   rightPane.className = 'flex-1';
   wrapper.appendChild(leftPanel);
   wrapper.appendChild(rightPane);
+  // Create a right-side Process Paths panel to surface common targets
+  const rightPanel = document.createElement('aside');
+  rightPanel.id = 'rightPanel';
+  rightPanel.className = 'w-64 bg-white border border-gray-200 rounded-xl p-3 h-[72vh] overflow-auto';
+  rightPanel.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold">Process Paths</h2>
+      <span class="text-xs text-gray-600">Drop targets</span>
+    </div>
+    <div id="processPaths" class="space-y-3">
+      <div class="proc-card" id="process-cb"><span class="font-semibold">CB</span><span class="proc-count" id="proc-count-cb">0</span></div>
+      <div class="proc-card" id="process-sort"><span class="font-semibold">Sort</span><span class="proc-count" id="proc-count-sort">0</span></div>
+      <div class="proc-card" id="process-dock"><span class="font-semibold">Dock</span><span class="proc-count" id="proc-count-dock">0</span></div>
+    </div>
+  `;
+  wrapper.appendChild(rightPanel);
   rightPane.appendChild(boardGrid);
 
   const unassignedCountEl = document.getElementById('unassignedCount');
@@ -102,7 +118,28 @@ document.addEventListener('DOMContentLoaded', () => {
     card.style.position = 'relative';
     card.appendChild(layer);
     const [countId, key] = TILES[idx] || [];
-    if (key) tileBadgeLayers[key] = layer;
+    if (key) {
+      // allow multiple layers per logical key (array) while keeping backwards compatibility
+      if (!tileBadgeLayers[key]) tileBadgeLayers[key] = layer;
+      else if (tileBadgeLayers[key] instanceof HTMLElement) tileBadgeLayers[key] = [tileBadgeLayers[key], layer];
+      else tileBadgeLayers[key].push(layer);
+    }
+    makeDropTarget(card, key);
+  });
+
+  // Wire up the Process Paths cards we added to the rightPanel. Map them to existing tile keys.
+  // process-cb -> 'cb', process-sort -> 'e2s' (Each to Sort), process-dock -> 'dockws'
+  const PROCESS_MAPPINGS = [ ['process-cb','cb'], ['process-sort','e2s'], ['process-dock','dockws'] ];
+  PROCESS_MAPPINGS.forEach(([cardId, key]) => {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    const layer = document.createElement('div');
+    layer.className = 'absolute inset-x-2 bottom-2 pointer-events-none';
+    card.style.position = 'relative';
+    card.appendChild(layer);
+    if (!tileBadgeLayers[key]) tileBadgeLayers[key] = layer;
+    else if (tileBadgeLayers[key] instanceof HTMLElement) tileBadgeLayers[key] = [tileBadgeLayers[key], layer];
+    else tileBadgeLayers[key].push(layer);
     makeDropTarget(card, key);
   });
 
@@ -171,6 +208,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (el) el.textContent = String(counts[key] || 0);
     });
     unassignedCountEl.textContent = String(counts['unassigned'] || 0);
+    // Update Process Paths counts if present
+    try{
+      document.getElementById('proc-count-cb').textContent = String(counts['cb'] || 0);
+      // process-sort maps to 'e2s' (Each to Sort)
+      document.getElementById('proc-count-sort').textContent = String(counts['e2s'] || 0);
+      // process-dock maps to 'dockws'
+      document.getElementById('proc-count-dock').textContent = String(counts['dockws'] || 0);
+    }catch(_){/* ignore missing elements */}
   }
 
   // Make any card a drop target for badges
@@ -194,8 +239,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if ((key || 'unassigned') === 'unassigned'){
           unassignedStack.appendChild(node);
         }else{
-          // ensure the layer exists
-          tileBadgeLayers[key]?.appendChild(node);
+          // Prefer the drop-target's own overlay layer when available
+          const targetLayer = (e.currentTarget && e.currentTarget.querySelector && e.currentTarget.querySelector('.pointer-events-none')) || null;
+          if (targetLayer) targetLayer.appendChild(node);
+          else {
+            // fallback: append to the primary layer for the key (support array or single element)
+            const layers = tileBadgeLayers[key];
+            if (Array.isArray(layers)) layers[0].appendChild(node);
+            else if (layers instanceof HTMLElement) layers.appendChild(node);
+          }
         }
         restack(node.parentElement); // re-apply overlap
       }
@@ -284,7 +336,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (b.loc === 'unassigned'){
         unassignedStack.appendChild(node);
       }else{
-        tileBadgeLayers[b.loc]?.appendChild(node);
+        const layers = tileBadgeLayers[b.loc];
+        if (Array.isArray(layers)) layers[0].appendChild(node);
+        else if (layers instanceof HTMLElement) layers.appendChild(node);
+        // if no layer exists for this key, badge will not be attached to any tile (keep in STATE)
       }
     });
 

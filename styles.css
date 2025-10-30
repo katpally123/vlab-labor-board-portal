@@ -18,6 +18,14 @@
 }
 .board-count{ font-weight:700; font-size:1.25rem; margin-top:1rem; }
 
+/* Right panel: process paths */
+.proc-card{
+  border:1px solid #e5e7eb; background:#fff; border-radius:.5rem; padding:.6rem .8rem;
+  display:flex; justify-content:space-between; align-items:center; gap:8px; cursor:pointer;
+}
+.proc-card:hover{ box-shadow:0 4px 10px rgba(2,6,23,0.06); }
+.proc-count{ font-weight:800; font-size:1rem; }
+
 /* Overlapping badge strip */
 .overlap-wrap{ display:flex; align-items:center; flex-wrap:nowrap; overflow-x:auto; padding:6px 2px; }
 .badge{
