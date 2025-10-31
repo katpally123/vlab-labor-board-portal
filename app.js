@@ -27,13 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const shortDay  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   const WEEK_ALLOWED = {
-    'Sunday':    ['DA','DB','DL','DH','NA','NB','NL','NH'],
+    // Codes active per calendar day (union of day & night codes for that weekday)
+    'Sunday':    ['DA','DL','DN','DH','NA','NL','NN'],
     'Monday':    ['DA','DC','DL','DH','NA','NC','NL','NH'],
-    'Tuesday':   ['DA','DC','DL','DH','NA','NC','NL','NH'],
-    'Wednesday': ['DA','DB','DL','DH','NB','NL','NH'],
-    'Thursday':  ['DB','DC','DL','DH','NB','NC','NL','NH'],
-    'Friday':    ['DB','DC','DL','DH','NB','NC','NL','NH'],
-    'Saturday':  ['DB','DL','DH','NB','NL','NH']
+    'Tuesday':   ['DA','DC','DL','NA','NC','NL'],
+    'Wednesday': ['DA','DB','NA','NB'],
+    'Thursday':  ['DB','DC','DN','NB','NC','NN','NH'],
+    'Friday':    ['DB','DC','DN','DH','NB','NC','NN','NH'],
+    'Saturday':  ['DB','DL','DN','DH','NB','NL','NN','NH']
   };
 
   const shiftTypeMap = {
@@ -73,8 +74,144 @@ document.addEventListener('DOMContentLoaded', () => {
     makeDropTarget(layer, TILES[idx] ? TILES[idx][1] : null);
   });
 
+  // wire up count inputs for each tile (allow numeric input to assign random badges)
+  function assignRandomToTile(key, n){
+    // Update STATE only: pick `n` random unassigned badges and set their loc to the tile key.
+    const unassigned = Object.values(STATE.badges).filter(b => b.loc === 'unassigned');
+    if (unassigned.length === 0) return 0;
+    const take = Math.min(n, unassigned.length);
+    for (let i = 0; i < take; i++){
+      const idx = Math.floor(Math.random() * unassigned.length);
+      const b = unassigned.splice(idx,1)[0];
+      b.loc = key;
+    }
+    // After mutating STATE, re-render the board to avoid DOM duplication and keep layering consistent.
+    try{ renderAllBadges(); }catch(_){ }
+    try{ setCounts(); }catch(_){ }
+    return take;
+  }
+
+  function unassignFromTile(key, n){
+    // Update STATE only: move up to `n` badges from the tile back to unassigned.
+    const inTile = Object.values(STATE.badges).filter(b => b.loc === key);
+    const take = Math.min(n, inTile.length);
+    for (let i = 0; i < take; i++){
+      // remove from the end of the list (recently-rendered) — deterministic and simple
+      const b = inTile[inTile.length - 1 - i];
+      if (!b) break;
+      b.loc = 'unassigned';
+    }
+    try{ renderAllBadges(); }catch(_){ }
+    try{ setCounts(); }catch(_){ }
+    return take;
+  }
+
+  // attach listeners to inputs
+  TILES.forEach(([id,key]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // if it's an input
+    if (el.tagName === 'INPUT'){
+      // set initial properties
+      if (key === 'unassigned') el.readOnly = true;
+      el.addEventListener('change', (ev) => {
+        const desired = Number(el.value) || 0;
+        const countsNow = Object.values(STATE.badges).filter(b => b.loc === key).length;
+        if (desired > countsNow){
+          const toAdd = desired - countsNow;
+          const added = assignRandomToTile(key, toAdd);
+          if (added < toAdd) alert(`Only ${added} could be assigned (not enough unassigned).`);
+        } else if (desired < countsNow){
+          const toRemove = countsNow - desired;
+          unassignFromTile(key, toRemove);
+        }
+        setCounts();
+      });
+    }
+  });
+
   // unassigned stack should accept drops too
   if (unassignedStack) makeDropTarget(unassignedStack, 'unassigned');
+
+  // Unassigned dropdown overlay handling
+  const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
+  const leftPanelEl = document.getElementById('leftPanel');
+  let overlayEl = null;
+  let _savedBodyOverflow = null;
+  let _savedLeftPanelOverflow = null;
+  let _overlayRepositionHandler = null;
+
+  function openUnassignedOverlay(){
+    if (overlayEl) return;
+    // create overlay
+    overlayEl = document.createElement('div'); overlayEl.className = 'unassigned-overlay'; overlayEl.id = 'unassignedOverlay';
+    const hdr = document.createElement('div'); hdr.style.display='flex'; hdr.style.justifyContent='space-between'; hdr.style.alignItems='center'; hdr.style.marginBottom='6px';
+    const title = document.createElement('strong'); title.textContent = 'Unassigned'; hdr.appendChild(title);
+    const closeBtn = document.createElement('button'); closeBtn.className = 'text-sm text-gray-600 border rounded p-1'; closeBtn.textContent='✕'; closeBtn.addEventListener('click', closeUnassignedOverlay);
+    hdr.appendChild(closeBtn);
+    overlayEl.appendChild(hdr);
+
+  // append overlay to body first so measurements work, then position it relative to leftPanel
+  document.body.appendChild(overlayEl);
+  // prevent page scroll and leftPanel scroll while overlay is open to avoid duplicate scrollbars
+  try{ _savedBodyOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; }catch(_){}
+  try{ _savedLeftPanelOverflow = leftPanelEl.style.overflow; leftPanelEl.style.overflow = 'hidden'; }catch(_){}
+    // position overlay to align with leftPanel
+    function repositionOverlay(){
+      if (!overlayEl) return;
+      const rect = leftPanelEl.getBoundingClientRect();
+      // place overlay aligned to leftPanel, but slightly inset
+      overlayEl.style.position = 'fixed';
+      overlayEl.style.left = (rect.left + window.scrollX) + 'px';
+      overlayEl.style.top = (rect.top + window.scrollY) + 'px';
+      overlayEl.style.width = Math.max(280, rect.width) + 'px';
+      overlayEl.style.maxHeight = Math.max(200, window.innerHeight - (rect.top + 40)) + 'px';
+    }
+    repositionOverlay();
+    // move stack into overlay after positioning to avoid layout shifts
+    overlayEl.appendChild(unassignedStack);
+    leftPanelEl && leftPanelEl.classList.add('collapsed');
+    toggleUnassignedBtn && toggleUnassignedBtn.setAttribute('aria-expanded','true');
+    // close when clicking outside
+    setTimeout(()=>{ document.addEventListener('click', outsideClickHandler); }, 10);
+    // re-render so the overlay shows the full unassigned list
+    try{ renderAllBadges(); }catch(_){ }
+    // keep overlay positioned on resize/scroll
+    _overlayRepositionHandler = () => repositionOverlay();
+    window.addEventListener('resize', _overlayRepositionHandler);
+    window.addEventListener('scroll', _overlayRepositionHandler, true);
+  }
+
+  function closeUnassignedOverlay(){
+    if (!overlayEl) return;
+    // move stack back into leftPanel
+    leftPanelEl.appendChild(unassignedStack);
+    if (overlayEl.parentElement) overlayEl.parentElement.removeChild(overlayEl);
+    overlayEl = null;
+    leftPanelEl && leftPanelEl.classList.remove('collapsed');
+    toggleUnassignedBtn && toggleUnassignedBtn.setAttribute('aria-expanded','false');
+    document.removeEventListener('click', outsideClickHandler);
+    // re-render so left panel shows compact preview again
+    try{ renderAllBadges(); }catch(_){ }
+    // restore scrolling/state
+    try{ if (_savedBodyOverflow !== null) document.body.style.overflow = _savedBodyOverflow; }catch(_){ }
+    try{ if (_savedLeftPanelOverflow !== null) leftPanelEl.style.overflow = _savedLeftPanelOverflow; }catch(_){ }
+    // remove reposition handlers
+    try{ if (_overlayRepositionHandler) { window.removeEventListener('resize', _overlayRepositionHandler); window.removeEventListener('scroll', _overlayRepositionHandler, true); _overlayRepositionHandler = null; } }catch(_){ }
+  }
+
+  function outsideClickHandler(e){
+    if (!overlayEl) return;
+    if (overlayEl.contains(e.target) || toggleUnassignedBtn.contains(e.target)) return;
+    closeUnassignedOverlay();
+  }
+
+  toggleUnassignedBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (overlayEl) closeUnassignedOverlay(); else openUnassignedOverlay();
+  });
+  // ESC closes overlay
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlayEl) closeUnassignedOverlay(); });
 
   // In-memory badge store
   const STATE = { badges: {} };
@@ -82,10 +219,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- helpers ---
   function parseInputDate(dateStr){
     if (!dateStr) return null;
+    // accept dd/mm/yyyy
     if (dateStr.includes('/')){
-      const [d,m,y] = dateStr.split('/').map(Number);
+      const parts = dateStr.split('/').map(Number);
+      if (parts.length === 3){
+        const [d,m,y] = parts;
+        return new Date(y, m-1, d);
+      }
+    }
+    // accept ISO yyyy-mm-dd (from <input type=date>) without timezone shift
+    // avoid using new Date(string) which can be parsed as UTC and shift day in some timezones
+    const isoMatch = /^\s*(\d{4})-(\d{2})-(\d{2})\s*$/.exec(dateStr);
+    if (isoMatch){
+      const y = Number(isoMatch[1]);
+      const m = Number(isoMatch[2]);
+      const d = Number(isoMatch[3]);
       return new Date(y, m-1, d);
     }
+    // fallback
     return new Date(dateStr);
   }
 
@@ -142,7 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.values(STATE.badges).forEach(b => { counts[b.loc] = (counts[b.loc] || 0) + 1; });
     TILES.forEach(([id,key]) => {
       const el = document.getElementById(id);
-      if (el) el.textContent = String(counts[key] || 0);
+      if (el){
+        if (el.tagName === 'INPUT') el.value = String(counts[key] || 0);
+        else el.textContent = String(counts[key] || 0);
+      }
     });
     unassignedCountEl.textContent = String(counts['unassigned'] || 0);
   }
@@ -157,8 +311,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!payload) return;
       // payload may be employee id (preferred) or DOM id
       let node = document.getElementById(payload) || document.querySelector(`.badge[data-id="${payload}"]`);
+      let badgeId = node && node.id;
+      // if no DOM badge exists yet, try to find the badge in STATE by eid and create a badge node
+      if (!node){
+        const found = Object.values(STATE.badges).find(b => String(b.eid) === String(payload));
+        if (found){
+          node = renderBadge(found);
+          badgeId = found.id;
+          // append into container (will be moved again below)
+          document.body.appendChild(node);
+        }
+      }
       if (!node) return; // unknown drag payload
-      const badgeId = node.id;
       if (!badgeId || !STATE.badges[badgeId]) return;
       STATE.badges[badgeId].loc = key || 'unassigned';
       // move DOM node into container (append will move, not clone)
@@ -174,8 +338,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const children = Array.from(container.children);
     children.forEach((c,i) => {
       const isLeft = container.id === 'unassignedStack';
-      if (isLeft){ c.style.marginTop = i === 0 ? '0px' : '-18px'; c.style.display = 'block'; c.style.marginLeft = '0px'; }
-      else { c.style.marginTop = '0px'; c.style.marginLeft = i === 0 ? '0px' : '-10px'; c.style.display = 'inline-block'; }
+      if (isLeft){
+        // stacked overlapping list on the left panel
+        c.style.marginTop = i === 0 ? '0px' : '-18px';
+        c.style.display = 'block';
+        c.style.marginLeft = '0px';
+      } else {
+        // in tiles, use grid layout; clear any previous overlap/inline styles
+        c.style.marginTop = '0px';
+        c.style.marginLeft = '0px';
+        c.style.display = 'block';
+      }
       c.style.pointerEvents = 'auto';
     });
   }
@@ -207,6 +380,22 @@ document.addEventListener('DOMContentLoaded', () => {
     shiftEl.textContent = `${sc} • ${stype}`;
     const eidEl = document.createElement('div'); eidEl.className = 'eid'; eidEl.textContent = p.eid || '';
     info.appendChild(nameEl); info.appendChild(shiftEl); info.appendChild(eidEl);
+
+    // barcode / handle area (ID card style)
+    if (p.barcode){
+      const bcWrap = document.createElement('div'); bcWrap.className = 'barcodeWrap';
+      const bcImg = document.createElement('div'); bcImg.className = 'barcode';
+      // show barcode text as fallback inside mock bars; real barcode images can replace this later
+      bcImg.textContent = p.barcode;
+      const bcText = document.createElement('div'); bcText.className = 'barcodeText'; bcText.textContent = p.handle || '';
+      bcWrap.appendChild(bcImg); bcWrap.appendChild(bcText);
+      info.appendChild(bcWrap);
+    } else if (p.handle){
+      // show handle below eid if present
+      const handleEl = document.createElement('div'); handleEl.className = 'eid'; handleEl.textContent = p.handle;
+      info.appendChild(handleEl);
+    }
+
     wrap.appendChild(info);
 
     // presence tick (right)
@@ -244,14 +433,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // clear
     if (unassignedStack) unassignedStack.innerHTML = '';
     Object.values(tileBadgeLayers).forEach(layer => { if (layer) layer.innerHTML = ''; });
+
+    // Render unassigned as a compact list in the left panel (preview), and full list in overlay when open.
+    const overlayOpen = !!document.getElementById('unassignedOverlay');
+    const unassigned = Object.values(STATE.badges).filter(b => b.loc === 'unassigned');
+    const previewCount = overlayOpen ? Infinity : 6;
+    let rendered = 0;
+
     Object.values(STATE.badges).forEach(b => {
-      const node = renderBadge(b);
-      if (b.present){ node.classList.add('present'); const t = document.createElement('div'); t.className='tick'; t.textContent='✓'; node.appendChild(t); }
-      if (b.loc === 'unassigned') unassignedStack.appendChild(node);
-      else tileBadgeLayers[b.loc]?.appendChild(node);
+      if (b.loc === 'unassigned'){
+        if (rendered < previewCount){
+          const item = document.createElement('div');
+          item.className = 'unassigned-item';
+          item.setAttribute('draggable','true');
+          item.setAttribute('data-eid', String(b.eid));
+          item.textContent = b.name || b.eid || '';
+          item.addEventListener('dragstart', (e) => { try{ e.dataTransfer.setData('text/plain', String(b.eid || b.id)); }catch(_){ e.dataTransfer.setData('text/plain', String(b.eid || b.id)); } });
+          unassignedStack.appendChild(item);
+          rendered++;
+        }
+        // otherwise skip rendering in preview mode; overlay will render full list when open
+      } else {
+        const node = renderBadge(b);
+        if (b.present){ node.classList.add('present'); const t = document.createElement('div'); t.className='tick'; t.textContent='✓'; node.appendChild(t); }
+        tileBadgeLayers[b.loc]?.appendChild(node);
+      }
     });
+
+    // If there are more unassigned than previewCount and overlay is closed, show a "Show all" control
+    if (!overlayOpen && unassigned.length > previewCount){
+      const more = document.createElement('button'); more.className = 'more-link'; more.textContent = `Show all (${unassigned.length})`;
+      more.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (typeof openUnassignedOverlay === 'function') openUnassignedOverlay(); else toggleUnassignedBtn && toggleUnassignedBtn.click(); });
+      unassignedStack.appendChild(more);
+    }
     restack(unassignedStack);
     Object.values(tileBadgeLayers).forEach(restack);
+    // tiles use CSS grid by default; ensure any legacy grid-mode class is removed
+    try{ Object.values(tileBadgeLayers).forEach(layer => layer && layer.classList.remove('grid-mode')); }catch(_){ }
     setCounts(); updateActualHC();
   }
 
@@ -337,11 +555,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       STATE.badges = {};
       filtered.forEach((r, idx) => {
-        const name = (r['Employee Name'] ?? r['Name'] ?? '').toString();
-        const eid  = (r['Employee ID'] ?? r['ID'] ?? '').toString();
+        const name = String(r['Employee Name'] ?? r['Name'] ?? r['Full Name'] ?? '').trim();
+        const eid  = String(r['Employee ID'] ?? r['ID'] ?? r['EID'] ?? r['Employee Number'] ?? '').trim();
         const sc   = shiftCodeOf(r['Shift Pattern'] ?? r['ShiftCode'] ?? r['Shift Code'] ?? r['Shift'] ?? r['Pattern']);
+        const barcode = String(r['Barcode'] ?? r['Badge'] ?? r['Employee Login'] ?? r['Username'] ?? '').trim();
+        const handle = String(r['Handle'] ?? r['Employee Handle'] ?? r['Login'] ?? '').trim();
+        const photo = String(r['Photo'] ?? r['Photo URL'] ?? r['Image'] ?? '').trim();
         const id   = `b_${eid || idx}_${Math.random().toString(36).slice(2,8)}`;
-        STATE.badges[id] = { id, name, eid, scode: sc, site: siteSel, present:false, loc:'unassigned' };
+        STATE.badges[id] = { id, name, eid, scode: sc, site: siteSel, present:false, loc:'unassigned', barcode, handle, photo };
       });
 
       if (Object.keys(STATE.badges).length === 0){
@@ -351,7 +572,43 @@ document.addEventListener('DOMContentLoaded', () => {
       renderAllBadges();
       setupVPH(plannedHC);
       output.textContent = '';
+
+      // persist compact snapshot so user can reload without re-uploading CSV
+      try{
+        const snap = { badges: STATE.badges, meta: { date: dateStr, shift: shiftSel, site: siteSel, plannedHC } };
+        localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
+        console.debug('[save] saved roster snapshot to localStorage (vlab:lastRoster)');
+      }catch(_){ /* ignore storage failures */ }
     }).catch(err => { console.error(err); output.textContent = 'Error processing files. Please check CSV headers and try again.'; });
+  });
+
+  // Load last roster from localStorage without uploading CSV
+  const loadLastBtn = document.getElementById('loadLastBtn');
+  const clearSavedBtn = document.getElementById('clearSavedBtn');
+  loadLastBtn?.addEventListener('click', () => {
+    try{
+      const raw = localStorage.getItem('vlab:lastRoster');
+      if (!raw){ alert('No saved roster found. Build a board once to save the roster.'); return; }
+      const snap = JSON.parse(raw);
+      if (!snap || !snap.badges){ alert('Saved roster is invalid.'); return; }
+      STATE.badges = snap.badges;
+      // apply meta back to form/UI if available
+      if (snap.meta){
+        if (snap.meta.date) document.getElementById('date').value = snap.meta.date;
+        if (snap.meta.shift) { const r = document.querySelector(`input[name="shift"][value="${snap.meta.shift}"]`); if (r) r.checked = true; }
+        if (snap.meta.site) document.getElementById('site').value = snap.meta.site;
+        if (snap.meta.plannedHC) document.getElementById('plannedVolumeStub').value = snap.meta.plannedHC;
+      }
+      renderAllBadges();
+      setupVPH(Number((snap.meta && snap.meta.plannedHC) || 0));
+      output.textContent = '';
+    }catch(err){ console.error(err); alert('Failed to load saved roster. See console for details.'); }
+  });
+
+  clearSavedBtn?.addEventListener('click', () => {
+    if (!confirm('Clear saved roster from local storage?')) return;
+    localStorage.removeItem('vlab:lastRoster');
+    alert('Saved roster cleared.');
   });
 
   function setupVPH(hc){
@@ -371,5 +628,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vlab-shift-summary-${payload.date || 'NA'}.json`; a.click();
   });
+
+  // Publish / Unpublish flow: show assignments-only fullscreen view
+  const publishBtn = document.getElementById('publishBtn');
+  const exitPublishBtn = document.getElementById('exitPublishBtn');
+  function enterPublish(){
+    document.body.classList.add('published');
+    if (publishBtn) publishBtn.classList.add('hidden');
+    if (exitPublishBtn) exitPublishBtn.classList.remove('hidden');
+    // focus the exit button for accessibility
+    exitPublishBtn && exitPublishBtn.focus();
+  }
+  function exitPublish(){
+    document.body.classList.remove('published');
+    if (publishBtn) publishBtn.classList.remove('hidden');
+    if (exitPublishBtn) exitPublishBtn.classList.add('hidden');
+    publishBtn && publishBtn.focus();
+  }
+  publishBtn?.addEventListener('click', (ev) => {
+    // quick confirmation to avoid accidental publish
+    if (!confirm('Publish assignments: this will hide controls and show a fullscreen assignments-only view. Proceed?')) return;
+    enterPublish();
+  });
+  exitPublishBtn?.addEventListener('click', (ev) => { exitPublish(); });
+
+  // ESC key exits publish mode
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('published')) exitPublish(); });
 
 });

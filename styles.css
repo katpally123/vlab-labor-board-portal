@@ -13,10 +13,17 @@
 /* Board tiles */
 .board-card{
   border:1px solid #e5e7eb; background:#fff; border-radius: .75rem;
-  min-height:132px; padding:1rem; display:flex; flex-direction:column;
-  justify-content:space-between; min-width:160px;
+  /* allow cards to size naturally to their content instead of forcing equal heights */
+  min-height:unset; padding:0.75rem 0.85rem; display:flex; flex-direction:column;
+  /* don't force vertical stretching across the grid */
+  align-self:flex-start; gap:10px; min-width:180px; box-shadow: 0 2px 6px rgba(2,6,23,0.03);
 }
 .board-count{ font-weight:700; font-size:1.25rem; margin-top:1rem; }
+
+/* Tile header: label and count on same line */
+.tile-header{ display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; }
+.board-count-input{ width:64px; height:36px; padding:6px 8px; border-radius:10px; border:1px solid #eef2f6; font-weight:800; text-align:center; background:#fff; box-shadow: 0 1px 0 rgba(2,6,23,0.02); }
+.board-count-input[readonly]{ background:transparent; border:none; font-weight:800; font-size:1.2rem; text-align:right; box-shadow:none; }
 
 /* Right panel: process paths */
 .proc-card{
@@ -31,21 +38,22 @@
 .stack-column{ display:flex; flex-direction:column; gap:0; }
 .badge{
   position:relative; display:flex; align-items:center; gap:12px;
-  width:180px; height:100px; padding:10px; box-sizing:border-box;
-  border-radius:12px; border:1px solid rgba(0,0,0,.06);
+  /* compact, card-like badges */
+  width:100%; height:64px; padding:8px; box-sizing:border-box;
+  border-radius:10px; border:1px solid rgba(0,0,0,.04);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  box-shadow:0 4px 10px rgba(2,6,23,0.06);
+  box-shadow:0 6px 14px rgba(2,6,23,0.04);
   cursor:grab; opacity:1; user-select:none; background: #fff;
 }
 .badge:first-child{ margin-left:0; }
 
 /* Avatar */
-.badge .avatar{ width:48px; height:48px; border-radius:9999px; background:rgba(0,0,0,0.06); flex:0 0 48px; display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:800; }
+.badge .avatar{ width:40px; height:40px; border-radius:9999px; background:rgba(0,0,0,0.06); flex:0 0 40px; display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:800; font-size:0.9rem; }
 
 /* Info column */
-.badge .info{ display:flex; flex-direction:column; gap:4px; flex:1 1 auto; }
+.badge .info{ display:flex; flex-direction:column; gap:2px; flex:1 1 auto; overflow:hidden; }
 .badge .info{ justify-content:center; }
-.badge .info .name{ margin:0; font-size:1rem; line-height:1.05; font-weight:800; color:rgba(10,15,25,0.95); }
+.badge .info .name{ margin:0; font-size:0.95rem; line-height:1.05; font-weight:800; color:rgba(10,15,25,0.95); overflow:hidden; text-overflow:ellipsis; }
 .badge .info .sub{ font-size:0.82rem; color:rgba(34,34,34,0.6); }
 .badge .info .eid{ font-size:0.82rem; color:rgba(34,34,34,0.6); font-weight:600; }
 .badge .info .handle{ font-size:0.78rem; color:rgba(99,99,99,0.7); }
@@ -80,6 +88,22 @@
 #unassignedStack .badge:first-child{ margin-top:0; }
 #unassignedStack .badge:hover{ transform: translateX(4px); z-index: 20; }
 
+/* Unassigned overlay dropdown */
+.unassigned-overlay{
+  position:fixed; top:90px; left:20px; width:320px; max-height:70vh; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 10px 30px rgba(2,6,23,0.12); padding:8px; z-index:90; overflow:visible; /* let inner container scroll */
+}
+.unassigned-overlay .stack-column{ max-height:65vh; overflow:auto; }
+.leftPanel.collapsed #unassignedStack{ display:none; }
+
+/* Simple list items for unassigned overlay */
+.unassigned-item{ padding:8px 10px; border-radius:8px; border:1px solid rgba(0,0,0,0.04); margin-bottom:8px; background:#ffffff; cursor:grab; }
+.unassigned-item:active{ cursor:grabbing; }
+.unassigned-item:hover{ background:#f9fafb; }
+
+/* Show all link/button */
+.more-link{ display:block; width:100%; text-align:center; padding:8px 10px; border-radius:8px; border:1px dashed rgba(0,0,0,0.06); background:#fff; color:#374151; cursor:pointer; }
+.more-link:hover{ background:#f3f4f6; }
+
 /* name text must truncate */
 .avatar{ width:56px; height:56px; border-radius:9999px; background:rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:center; font-weight:700; color:#0b1220; flex:0 0 56px; }
 
@@ -88,11 +112,29 @@
 .info .shiftmeta{ font-size:12px; color:rgba(99,99,99,0.7); }
 .info .eid{ font-size:11px; color:rgba(99,99,99,0.6); }
 
+/* Barcode / handle area inside badge */
+.barcodeWrap{ display:flex; flex-direction:column; gap:4px; margin-top:4px; }
+.barcode{ height:18px; border-radius:4px; background:repeating-linear-gradient(90deg, #111 0 2px, #fff 2px 6px); color:transparent; font-size:10px; padding:2px 6px; }
+.barcodeText{ font-size:10px; color:rgba(55,65,81,0.7); }
+
 .badge .name{ flex:1; min-width:0; }
 
 /* path-box (tiles) should wrap badges and not overlap */
-.path-box{ display:flex; flex-direction:column; gap:8px; align-content:flex-start; min-height:140px; padding:8px; border-radius:12px; overflow:auto; }
-.path-box .badge{ margin-top:0; width:100%; height:72px; padding:8px; box-sizing:border-box; }
+/* Default: use a responsive grid inside each tile so badges flow side-by-side naturally.
+   The grid will expand to multiple columns when there's horizontal space; single-column
+   behavior happens automatically on narrow tiles. This produces side-by-side badges by default. */
+.path-box{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap:10px; align-content:start; padding:10px; border-radius:12px;
+  overflow:auto; max-height: calc(72vh - 160px);
+}
+.path-box .badge{ margin-top:0; width:auto; max-width:100%; height:64px; padding:8px; box-sizing:border-box; }
+
+/* When a tile has many badges, switch to a compact grid so badges flow horizontally/vertically
+   instead of stretching the tile downward. JS will add/remove the `grid-mode` class per tile. */
+/* legacy grid-mode kept for backward compatibility; not required because .path-box is grid by default */
+/* (no-op) */
 .path-box .avatar{ width:40px; height:40px; flex:0 0 40px; font-size:12px; }
 .path-box .info .name{ font-size:13px; }
 .path-box .info .shiftmeta{ font-size:11px; }
@@ -137,3 +179,30 @@
 
 /* Utility */
 .custom-output-label { color:#ff9900; font-weight:600; }
+
+/* Published (assignments-only) fullscreen mode */
+/* In published mode we hide chrome but allow the board to scroll inside main so users
+  can see all assignments. Keep body overflow hidden but make `main` the scroll container. */
+body.published{ overflow:hidden; }
+body.published header, body.published form, body.published #leftPanel, body.published #fileZone, body.published .chip, body.published #codesBar, body.published #plannedVolumeStub { display:none !important; }
+body.published main{ width:100vw; height:100vh; padding:0; margin:0; overflow:auto; -webkit-overflow-scrolling:touch; }
+body.published .grid{ grid-auto-flow:row; }
+body.published .board-card{ min-height:120px; border-radius:6px; }
+/* Allow individual tiles to scroll but give them slightly more space in published mode */
+body.published .path-box{ max-height: calc(100vh - 140px); overflow:auto; }
+
+/* Floating Exit Publish button when in published mode */
+#exitPublishBtn{ position:fixed; right:18px; top:18px; z-index:80; }
+
+/* Print-friendly: hide controls when printing */
+@media print{
+  header, form, #leftPanel, #fileZone, #exportLogBtn, #publishBtn { display:none !important; }
+}
+
+/* Responsive board grid that lets each tile size to content and wrap on small screens */
+.board-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:1rem;
+  align-items:start; /* important so items don't stretch vertically */
+}
