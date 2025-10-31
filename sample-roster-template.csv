@@ -1,0 +1,11 @@
+Employee Name,Employee ID,Employee Status,Shift Pattern,Department ID,Management Area ID
+John Smith,A123456,Active,DA,1211010,21
+Jane Doe,A123457,Active,DB,1211020,21
+Bob Johnson,A123458,Active,DC,1211030,21
+Alice Williams,A123459,Active,DL,1211040,21
+Charlie Brown,A123460,Active,DN,1299010,21
+Diana Prince,A123461,Active,DH,1299020,21
+Eve Adams,A123462,Active,NA,1299030,21
+Frank Castle,A123463,Active,NB,1299040,21
+Grace Hopper,A123464,Active,NC,1211070,22
+Henry Ford,A123465,Active,NL,1211010,21
