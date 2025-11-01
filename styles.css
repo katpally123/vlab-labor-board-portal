@@ -5,6 +5,36 @@
   display:flex; align-items:center;
 }
 
+/* Header band styles for the virtual board title and small blocks */
+.board-header{ border-bottom:1px solid #eef2f6; }
+.board-header-row{ padding:6px 0; }
+.board-title .main-title{ font-size:24px; font-weight:900; letter-spacing:1px; }
+.board-title .sub-title{ margin-top:4px; font-size:13px; color:rgba(15,23,42,0.6); }
+.header-blocks .header-block{ background:#fff; border:1px solid #e6e9ef; padding:8px 12px; border-radius:8px; text-align:center; min-width:96px; }
+.header-block .hb-label{ font-size:11px; color:#374151; font-weight:700; }
+.header-block .hb-value{ font-size:16px; font-weight:900; margin-top:6px; }
+.header-actions{ display:flex; align-items:center; }
+
+/* pale title band look */
+.board-header .main-title{ background: #FFF3C2; display:inline-block; padding:10px 24px; border-radius:8px; font-size:24px; font-weight:900; color:#0b1220; text-transform:uppercase; letter-spacing:1px; }
+
+/* small AM/PA blocks on left */
+.small-blocks .am-pa{ background:#f8fafc; border:1px solid #e6e9ef; padding:6px 10px; border-radius:6px; font-weight:700; color:#111827; margin-bottom:4px; text-align:center; }
+
+/* Make the header feel like a fixed physical header bar */
+.board-header{ position:sticky; top:0; z-index:60; background:#fff; box-shadow:0 2px 10px rgba(2,6,23,0.04); }
+
+/* Board canvas visuals */
+.board-canvas{ border:0; border-radius:8px; padding:8px; background:#fafafa; box-shadow: 0 8px 20px rgba(2,6,23,0.06); width:100%; height:82vh; overflow:auto; box-sizing:border-box; }
+.lines-header .line-labels div{ width: calc((100% - 0px) / 7); text-align:center; }
+.lines-columns{ display:flex; flex-direction:column; gap:40px; align-items:stretch; }
+.line-col{ display:flex; flex-direction:row; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+.line-col .line-title{ background:#0b1220; color:#fff; padding:8px 12px; border-radius:6px; text-align:center; align-self:flex-start; min-width:120px; }
+.line-col .board-card{ border:1px solid #e6e9ef; background:#fff; border-radius:8px; padding:0; box-shadow: 0 6px 14px rgba(2,6,23,0.04); }
+.line-col .board-card .tile-header{ background:transparent; color:inherit; padding:8px; }
+.line-col .board-card .badge-layer{ max-height:220px; overflow:auto; padding:8px; }
+.empty-box{ border:1px dashed #e6e9ef; background:#fbfbfb; border-radius:6px; }
+
 /* Compact chips for the summary row */
 .chip{
   padding:.25rem .5rem; background:#f3f4f6; border-radius:.375rem; font-size:.85rem;
@@ -12,11 +42,16 @@
 
 /* Board tiles */
 .board-card{
-  border:1px solid #e5e7eb; background:#fff; border-radius: .75rem;
-  /* allow cards to size naturally to their content instead of forcing equal heights */
-  min-height:unset; padding:0.75rem 0.85rem; display:flex; flex-direction:column;
-  /* don't force vertical stretching across the grid */
-  align-self:flex-start; gap:10px; min-width:180px; box-shadow: 0 2px 6px rgba(2,6,23,0.03);
+  border:1px solid rgba(0,0,0,0.06); background:#ffffff; border-radius:10px;
+  /* standardized workstation tile size to resemble a physical board */
+  min-width:160px; min-height:120px; width:160px; height:120px; padding:8px; display:flex; flex-direction:column; justify-content:flex-start; gap:8px;
+}
+
+/* Process cards override with larger sizes */
+.process-grid .board-card{
+  width:auto; /* Allow grid to control width */
+  height:auto; /* Allow content to control height */
+  max-height:none; /* Allow tiles to grow as needed */
 }
 .board-count{ font-weight:700; font-size:1.25rem; margin-top:1rem; }
 
@@ -37,56 +72,68 @@
 .overlap-wrap{ display:flex; align-items:flex-start; flex-wrap:nowrap; overflow-x:auto; padding:8px 6px; }
 .stack-column{ display:flex; flex-direction:column; gap:0; }
 .badge{
-  position:relative; display:flex; align-items:center; gap:12px;
-  /* compact, card-like badges */
-  width:100%; height:64px; padding:8px; box-sizing:border-box;
-  border-radius:10px; border:1px solid rgba(0,0,0,.04);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  box-shadow:0 6px 14px rgba(2,6,23,0.04);
+  position:relative; display:flex; align-items:flex-start; gap:10px;
+  /* wider badges to better display full names */
+  width:calc(50% - 6px); height:80px; padding:10px 8px; box-sizing:border-box;
+  border-radius:8px; border:1px solid rgba(0,0,0,.04);
+  white-space:normal; overflow:visible; 
+  box-shadow:0 4px 10px rgba(2,6,23,0.04);
   cursor:grab; opacity:1; user-select:none; background: #fff;
+  margin-bottom:6px;
 }
 .badge:first-child{ margin-left:0; }
 
-/* Avatar */
-.badge .avatar{ width:40px; height:40px; border-radius:9999px; background:rgba(0,0,0,0.06); flex:0 0 40px; display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:800; font-size:0.9rem; }
+/* Avatar - smaller for compact layout */
+.badge .avatar{ width:32px; height:32px; border-radius:9999px; background:rgba(0,0,0,0.06); flex:0 0 32px; display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:800; font-size:0.75rem; margin-top:4px; }
 
-/* Info column */
-.badge .info{ display:flex; flex-direction:column; gap:2px; flex:1 1 auto; overflow:hidden; }
-.badge .info{ justify-content:center; }
-.badge .info .name{ margin:0; font-size:0.95rem; line-height:1.05; font-weight:800; color:rgba(10,15,25,0.95); overflow:hidden; text-overflow:ellipsis; }
-.badge .info .sub{ font-size:0.82rem; color:rgba(34,34,34,0.6); }
-.badge .info .eid{ font-size:0.82rem; color:rgba(34,34,34,0.6); font-weight:600; }
+/* Info column - optimized for compact layout */
+.badge .info{ display:flex; flex-direction:column; gap:1px; flex:1 1 auto; overflow:visible; justify-content:flex-start; min-width:0; padding-top:2px; }
+.badge .info .name{ margin:0; font-size:0.95rem; line-height:1.2; font-weight:800; color:rgba(10,15,25,0.95); overflow:visible; text-overflow:clip; white-space:normal; max-width:100%; word-break:break-word; }
+.badge .info .sub{ font-size:0.68rem; color:rgba(34,34,34,0.6); }
+.badge .info .eid{ font-size:0.68rem; color:rgba(34,34,34,0.6); font-weight:600; }
 .badge .info .handle{ font-size:0.78rem; color:rgba(99,99,99,0.7); }
 
-/* Checkbox-style tick */
+/* avatar photo inside badge */
+.avatar-photo{ width:100%; height:100%; object-fit:cover; border-radius:9999px; display:block; }
+
+/* alias / handle below eid */
+.badge .alias{ font-size:0.78rem; color:rgba(55,65,81,0.7); font-weight:600; }
+
+/* compact barcode visuals */
+.barcode{ height:14px; border-radius:3px; background:repeating-linear-gradient(90deg, #111 0 2px, #fff 2px 6px); color:transparent; font-size:9px; padding:2px 6px; }
+.barcodeText{ font-size:10px; color:rgba(55,65,81,0.7); }
+
+/* Checkbox-style tick - smaller for compact badges */
 .badge .tick{
-  width:20px; height:20px; border-radius:6px; background:#e6f7ee; color:#059669; display:flex; align-items:center; justify-content:center;
-  font-weight:800; flex:0 0 20px; margin-left:6px; border:1px solid rgba(5,102,89,0.12);
-  position:absolute; right:8px; top:8px;
+  width:16px; height:16px; border-radius:4px; background:#e6f7ee; color:#059669; display:flex; align-items:center; justify-content:center;
+  font-weight:800; flex:0 0 16px; margin-left:4px; border:1px solid rgba(5,102,89,0.12);
+  position:absolute; right:4px; top:4px; font-size:10px;
 }
 
 /* Present state border */
 .badge.present{ outline:3px solid rgba(5,150,105,0.12); }
 
-/* Slightly larger name and compact subtext */
-.badge .info .name{ font-size:1.02rem; }
-.badge .info .sub, .badge .info .eid{ font-size:0.8rem; color:rgba(15,23,42,0.6); }
+/* Prominent name and compact subtext */
+.badge .info .name{ font-size:0.95rem; font-weight:700; line-height:1.2; }
+.badge .info .sub, .badge .info .eid{ font-size:0.68rem; color:rgba(15,23,42,0.6); }
 
 /* Make process cards visually distinct */
 .proc-card{ padding:10px 12px; border-radius:10px; background:#ffffff; display:flex; justify-content:space-between; align-items:center; }
 .proc-card .proc-count{ font-weight:800; color:#111827; }
 
-/* Compact badge style when rendered inside board tiles / process cards */
+/* Wider badge style when rendered inside board tiles / process cards */
 .board-card .badge, .proc-card .badge, .badge-layer .badge{
-  margin-left:0; display:inline-flex; align-items:center; padding:8px 10px; min-width:120px; max-width:180px; gap:8px;
+  margin-left:0; display:inline-flex; align-items:flex-start; padding:10px 8px; 
+  width:calc(50% - 6px); height:80px; gap:10px; margin-bottom:6px;
+  min-width:unset; max-width:unset; overflow:visible; white-space:normal;
 }
 
 /* Keep larger card appearance in the unassigned stack with vertical overlap */
-#leftPanel { background: #fff; }
-#unassignedStack { padding:6px; }
-#unassignedStack .badge{ display:block; min-width:220px; max-width:320px; margin-top:-18px; border-radius:10px; }
+#leftPanel { background: #fff; padding:12px; position:sticky; top:96px; height:calc(82vh - 24px); overflow:auto; }
+#unassignedStack { padding:8px; display:flex; flex-direction:column; align-items:flex-start; }
+#unassignedStack .badge{ display:block; width:260px; margin-top:-20px; border-radius:8px; box-shadow:0 6px 14px rgba(2,6,23,0.04); }
 #unassignedStack .badge:first-child{ margin-top:0; }
-#unassignedStack .badge:hover{ transform: translateX(4px); z-index: 20; }
+#unassignedStack .badge:hover{ transform: translateX(6px); z-index: 30; }
 
 /* Unassigned overlay dropdown */
 .unassigned-overlay{
@@ -124,12 +171,12 @@
    The grid will expand to multiple columns when there's horizontal space; single-column
    behavior happens automatically on narrow tiles. This produces side-by-side badges by default. */
 .path-box{
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap:10px; align-content:start; padding:10px; border-radius:12px;
-  overflow:auto; max-height: calc(72vh - 160px);
+  display:flex; flex-wrap:wrap; gap:4px; align-items:flex-start; padding:8px; border-radius:8px; overflow:auto; height:100%;
+  justify-content:flex-start; align-content:flex-start;
 }
-.path-box .badge{ margin-top:0; width:auto; max-width:100%; height:64px; padding:8px; box-sizing:border-box; }
+.path-box .badge{ width:calc(50% - 6px); height:80px; display:flex; flex-direction:row; align-items:flex-start; justify-content:flex-start; padding:10px 8px; box-sizing:border-box; border-radius:8px; border:1px solid rgba(0,0,0,0.04); background:#fff; gap:10px; margin-bottom:6px; overflow:visible; }
+.path-box .badge .info{ display:flex; flex-direction:column; flex:1; overflow:hidden; }
+.path-box .badge:hover{ transform:translateY(-1px); transition:transform 0.1s ease; }
 
 /* When a tile has many badges, switch to a compact grid so badges flow horizontally/vertically
    instead of stretching the tile downward. JS will add/remove the `grid-mode` class per tile. */
@@ -148,21 +195,28 @@
 .badge[data-shift="DH"]{ background:#fff2e6; }
 .badge[data-shift^="N"]{ background:#eef6ff; }
 
-/* presence tick on right edge */
-.tick{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:22px; height:22px; border-radius:9999px; background:#059669; color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; }
+/* presence tick on right edge (compact for badge cards) */
+.tick{ position:absolute; right:6px; top:6px; width:18px; height:18px; border-radius:9999px; background:#059669; color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:11px; }
 
 /* hover and grab cursors */
 .badge:active{ cursor:grabbing; }
 
 /* badge-layer layout inside cards: allow specific path-box rules to control layout */
-.badge-layer{ display:block; }
+.badge-layer{ 
+  display:flex; 
+  flex-wrap:wrap; 
+  gap:4px; 
+  padding:8px;
+  justify-content:flex-start;
+  align-content:flex-start;
+}
 
 /* Shift-code pastel backgrounds (accessible contrast for text) */
 .badge.DA, .badge.NA { background:#ddeeff; color:#0a2540; }
-.badge.DB, .badge.NB { background:#e3f6dc; color:#173a2f; }
+.badge.DB, .badge.NB { background:#dafbe6; color:#064e3b; } /* green */
+.badge.DN, .badge.NN { background:#efe6ff; color:#4c1d95; } /* purple */
+.badge.DL, .badge.NL { background:#fff3c2; color:#6b3e00; } /* yellow */
 .badge.DC, .badge.NC { background:#ffeedc; color:#4a2b00; }
-.badge.DL, .badge.NL { background:#ece4fa; color:#241b4a; }
-.badge.DN, .badge.NN { background:#fff5f0; color:#5a1f08; }
 .badge.DH, .badge.NH { background:#e2e9ee; color:#102a43; }
 
 /* Presence tick */
@@ -171,7 +225,7 @@
   opacity:1;
 }
 .badge .tick{
-  position:absolute; right:-6px; top:-6px;
+  position:absolute; right:6px; top:6px;
   background:#059669; color:white; width:16px; height:16px;
   display:flex; align-items:center; justify-content:center;
   border-radius:9999px; font-size:.7rem; font-weight:800;
@@ -184,12 +238,96 @@
 /* In published mode we hide chrome but allow the board to scroll inside main so users
   can see all assignments. Keep body overflow hidden but make `main` the scroll container. */
 body.published{ overflow:hidden; }
-body.published header, body.published form, body.published #leftPanel, body.published #fileZone, body.published .chip, body.published #codesBar, body.published #plannedVolumeStub { display:none !important; }
+/* hide chrome but keep the leftPanel visible (we show it in published mode) */
+body.published header, body.published form, body.published #fileZone, body.published .chip, body.published #codesBar, body.published #plannedVolumeStub, body.published #output { display:none !important; }
+/* Hide unassigned dropdown in published mode */
+body.published #leftPanel { display:none !important; }
 body.published main{ width:100vw; height:100vh; padding:0; margin:0; overflow:auto; -webkit-overflow-scrolling:touch; }
 body.published .grid{ grid-auto-flow:row; }
 body.published .board-card{ min-height:120px; border-radius:6px; }
 /* Allow individual tiles to scroll but give them slightly more space in published mode */
 body.published .path-box{ max-height: calc(100vh - 140px); overflow:auto; }
+
+/* Make the board canvas go edge-to-edge in published mode so it uses full browser width */
+/* Make the published board absolutely fill the viewport to avoid empty gutters */
+/* Edge and some browsers add scrollbar width to 100vw causing horizontal overflow.
+  Use left/right positioning and avoid 100vw. Ensure the root is 100% high and overflow hidden. */
+html, body { height:100%; }
+body.published{ overflow:hidden !important; }
+body.published main{ position:fixed; top:0; bottom:0; left:0; right:0; padding:0; margin:0; overflow:auto; z-index:40; -webkit-overflow-scrolling:touch; scrollbar-gutter: stable both-edges; }
+body.published .board-canvas{
+  position:relative; max-width:none !important; width:100% !important; margin:0 auto !important;
+  padding:8px !important; border-radius:0 !important; box-shadow:none !important;
+  border:none !important; height:auto !important; overflow:visible !important;
+}
+
+
+
+/* Main content should use full width when published (no left panel) */
+body.published main{ left:0; right:0; }
+
+/* Ensure the board-canvas uses the full remaining width inside main */
+body.published .board-canvas{ width:100% !important; max-width:none !important; margin-left:0 !important; }
+
+/* make sure the outer container can't cause extra width (Edge may respect margin on centered containers) */
+body.published .max-w-7xl, body.published .mx-auto, body.published .p-6{ max-width:none !important; margin:0 !important; }
+
+/* safety: prevent any element from exceeding viewport width (avoid accidental overflow) */
+body.published *{ box-sizing:border-box; max-width:100vw; }
+
+/* ensure any centered container doesn't constrain width in published mode */
+body.published .max-w-7xl, body.published .mx-auto{ max-width:none !important; margin:0 !important; }
+
+/* Reduce gaps and tighten columns to better use horizontal space in published mode */
+body.published .lines-columns{ gap:14px; }
+
+/* Optimize process grid for published mode - fit entire screen with 4 columns */
+body.published .process-grid{
+  min-height:calc(100vh - 32px) !important;
+  padding:16px !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  align-content:start;
+  gap:20px 10px !important; /* row-gap column-gap for published mode */
+  border:4px solid #1f2937 !important;
+  border-radius:12px !important;
+  margin:8px !important;
+  box-sizing:border-box !important;
+}
+
+/* Make process tiles optimized for published mode - match normal mode sizing */
+body.published .process-grid .board-card{
+  min-height:320px !important;
+  min-width:350px !important;
+}
+
+/* Ensure badge layers in published mode show two badges like normal mode */
+body.published .process-grid .badge-layer{
+  min-height:200px !important;
+  max-height:220px !important;
+  overflow-y:hidden !important;
+  padding:12px !important;
+  gap:8px !important;
+}
+
+/* Ensure badges in published mode are properly sized */
+body.published .process-grid .badge-layer .badge{
+  width:calc(50% - 6px) !important;
+  height:80px !important;
+  padding:10px 8px !important;
+  margin-bottom:6px !important;
+}
+body.published .line-col{ min-width:128px; }
+body.published .line-row .board-card{ min-height:160px; }
+
+/* Slightly stronger card shadows and subtle color tweaks for polish */
+.board-card{ box-shadow: 0 8px 22px rgba(2,6,23,0.04); }
+.board-card:hover{ transform: translateY(-2px); transition: transform 120ms ease; }
+
+
+
+/* Slightly tighter tile header spacing */
+.tile-header{ gap:10px; }
+
 
 /* Floating Exit Publish button when in published mode */
 #exitPublishBtn{ position:fixed; right:18px; top:18px; z-index:80; }
@@ -201,8 +339,110 @@ body.published .path-box{ max-height: calc(100vh - 140px); overflow:auto; }
 
 /* Responsive board grid that lets each tile size to content and wrap on small screens */
 .board-grid{
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  display:flex;
+  flex-direction:column;
   gap:1rem;
-  align-items:start; /* important so items don't stretch vertically */
 }
+
+.process-grid{
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:24px 12px; /* row-gap column-gap */
+  align-items:start;
+  border:6px solid #1f2937;
+  border-radius:16px;
+  padding:24px;
+  background:#f8fafc;
+  margin:8px;
+  box-sizing:border-box;
+}
+
+
+.line-row .tile-header .font-semibold{ font-weight:800; text-transform:uppercase; letter-spacing:0.4px; }
+.line-row .tile-header .board-count-input{ background:transparent; border:1px solid rgba(255,255,255,0.08); color:#fff; box-shadow:none; }
+
+/* WS cards should be taller to hold 2-4 badges */
+.line-row .board-card{ min-height:220px; padding:0; }
+.line-row .board-card .badge-layer{ padding:10px; }
+
+/* Process tiles - taller to show two badges comfortably */
+.process-grid .tile-header{ background:#1f2937; color:#ffffff; padding:14px 18px; border-radius:8px; font-weight:700; font-size:1.1rem; }
+.process-grid .board-card{ 
+  min-height:320px; 
+  min-width:350px;
+  border:3px solid #374151; 
+  border-radius:12px;
+  background:#ffffff;
+  box-shadow: 0 8px 24px rgba(2,6,23,0.12);
+}
+.process-grid .board-count-input{
+  width:80px;
+  height:44px;
+  font-size:1.1rem;
+  font-weight:800;
+  border:2px solid #374151;
+  border-radius:8px;
+  background:#f9fafb;
+}
+
+/* Process grid badges - sized to show exactly two badges */
+.process-grid .badge-layer{
+  min-height:200px;
+  max-height:220px;
+  overflow-y:hidden;
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:8px !important;
+  padding:12px !important;
+  align-content:flex-start !important;
+}
+
+.process-grid .badge-layer .badge{
+  width:calc(50% - 4px) !important;
+  height:80px !important;
+  margin-right:0 !important;
+  margin-bottom:6px !important;
+  min-width:unset !important;
+  max-width:unset !important;
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  padding:10px 8px !important;
+}
+
+/* subtle grid line separating lines for readability */
+.line-row + .line-row{ border-top:1px solid #f1f5f9; padding-top:12px; }
+
+/* Additional WS styling overrides for closer physical-board parity */
+.board-canvas{
+  border-color: #e2e8f0; /* slightly stronger frame */
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+}
+
+.line-col{ min-width:150px; /* tighten columns for denser layout */ }
+
+.line-row .board-card{
+  border:1px solid rgba(13,20,33,0.06);
+  background: linear-gradient(180deg,#ffffff,#fbfdff);
+  border-radius:10px;
+  overflow:hidden;
+}
+
+.line-row .tile-header{ padding:10px 12px; display:flex; align-items:center; justify-content:space-between; }
+.line-row .tile-header .font-semibold{ font-size:13px; }
+
+/* small WS number badge in the header (positioned left) */
+
+
+/* focus ring for keyboard users on badges */
+.badge:focus{ outline:3px solid rgba(59,130,246,0.25); box-shadow:0 4px 14px rgba(59,130,246,0.08); }
+
+/* slightly more compact badge inside tiles to fit more per-row */
+.path-box .badge{ height:60px; padding:6px 8px; gap:8px; }
+
+/* ensure avatar photos are crisp and clipped */
+.avatar-photo{ border-radius:9999px; width:100%; height:100%; object-fit:cover; display:block; }
+
+/* keep presence tick clearly visible on badges in tiles */
+.badge .tick{ right:8px; top:8px; }
+

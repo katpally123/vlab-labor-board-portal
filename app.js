@@ -42,22 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
     night: {0:'FHN',1:'FHN',2:'FHN',3:'FHN',4:'BHN',5:'BHN',6:'BHN'}
   };
 
+  // Tiles order matches DOM `board-card` order: process tiles only (WS tiles removed)
   const TILES = [
-    ['tile-unassigned','unassigned'],
-    ['tile-cb','cb'],
-    ['tile-ibws','ibws'],
-    ['tile-lineloaders','lineloaders'],
-    ['tile-trickle','trickle'],
-    ['tile-dm','dm'],
-    ['tile-idrt','idrt'],
-    ['tile-pb','pb'],
-    ['tile-e2s','e2s'],
-    ['tile-dockws','dockws'],
-    ['tile-e2sws','e2sws'],
-    ['tile-tpb','tpb'],
-    ['tile-tws','tws'],
-    ['tile-sap','sap'],
-    ['tile-ao5s','ao5s']
+    // Process tiles
+    ['tile-unassigned','unassigned'], ['tile-cb','cb'], ['tile-ibws','ibws'], ['tile-lineloaders','lineloaders'], ['tile-trickle','trickle'],
+    ['tile-dm','dm'], ['tile-idrt','idrt'], ['tile-pb','pb'], ['tile-e2s','e2s'], ['tile-dockws','dockws'],
+    ['tile-e2sws','e2sws'], ['tile-tpb','tpb'], ['tile-tws','tws'], ['tile-sap','sap'], ['tile-ao5s','ao5s']
   ];
 
   // tile layers map key -> element
@@ -73,6 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // make the layer itself accept drops
     makeDropTarget(layer, TILES[idx] ? TILES[idx][1] : null);
   });
+
+
 
   // wire up count inputs for each tile (allow numeric input to assign random badges)
   function assignRandomToTile(key, n){
@@ -355,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // renderBadge: returns a DOM node for a person (name-only, data-id, data-shift, draggable)
   function renderBadge(p){
-    // Card-style badge: 180x100 layout
+    // Card-style badge: compact layout
     const wrap = document.createElement('div');
     wrap.id = p.id;
     wrap.className = `badge ${(p.scode||'').trim()}`.trim();
@@ -363,11 +355,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (p.eid) wrap.setAttribute('data-id', String(p.eid));
     if (p.scode) wrap.setAttribute('data-shift', String(p.scode));
     wrap.title = p.name || '';
+    // accessibility: make badges focusable/clickable via keyboard
+    wrap.setAttribute('role','button');
+    wrap.setAttribute('tabindex','0');
+    wrap.setAttribute('aria-pressed', p.present ? 'true' : 'false');
 
     // left avatar placeholder
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = (p.name || '').split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase();
+    // show photo thumbnail when available, otherwise initials
+    if (p.photo){
+      const img = document.createElement('img');
+      img.src = p.photo;
+      img.alt = p.name || '';
+      img.className = 'avatar-photo';
+      // loading & decoding hints for better UX
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = (p.name || '').split(' ').map(s => s[0] || '').slice(0,2).join('').toUpperCase();
+    }
     wrap.appendChild(avatar);
 
     // info column
@@ -381,6 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const eidEl = document.createElement('div'); eidEl.className = 'eid'; eidEl.textContent = p.eid || '';
     info.appendChild(nameEl); info.appendChild(shiftEl); info.appendChild(eidEl);
 
+    // alias / handle (smaller, optional)
+    if (p.handle){ const h = document.createElement('div'); h.className = 'alias'; h.textContent = p.handle; info.appendChild(h); }
+
     // barcode / handle area (ID card style)
     if (p.barcode){
       const bcWrap = document.createElement('div'); bcWrap.className = 'barcodeWrap';
@@ -390,10 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const bcText = document.createElement('div'); bcText.className = 'barcodeText'; bcText.textContent = p.handle || '';
       bcWrap.appendChild(bcImg); bcWrap.appendChild(bcText);
       info.appendChild(bcWrap);
-    } else if (p.handle){
-      // show handle below eid if present
-      const handleEl = document.createElement('div'); handleEl.className = 'eid'; handleEl.textContent = p.handle;
-      info.appendChild(handleEl);
     }
 
     wrap.appendChild(info);
@@ -416,14 +423,26 @@ document.addEventListener('DOMContentLoaded', () => {
       }catch(_){ }
     });
 
-    // toggle presence on click
-    wrap.addEventListener('click', (ev) => {
-      // avoid toggling when starting a drag
-      if (ev?.detail === 0) return;
+    // toggle presence on click (and update aria state)
+    function togglePresent(){
       p.present = !p.present;
       if (p.present){ wrap.classList.add('present'); tick.style.display = ''; }
       else { wrap.classList.remove('present'); tick.style.display = 'none'; }
+      wrap.setAttribute('aria-pressed', p.present ? 'true' : 'false');
       updateActualHC();
+    }
+
+    wrap.addEventListener('click', (ev) => {
+      // avoid toggling when starting a drag
+      if (ev?.detail === 0) return;
+      togglePresent();
+    });
+
+    // keyboard accessibility: Enter or Space toggles presence
+    wrap.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar'){
+        ev.preventDefault(); togglePresent();
+      }
     });
 
     return wrap;
@@ -633,6 +652,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const publishBtn = document.getElementById('publishBtn');
   const exitPublishBtn = document.getElementById('exitPublishBtn');
   function enterPublish(){
+    // If an unassigned overlay is open, close it and ensure the unassigned stack lives in the left panel
+    try{ if (typeof closeUnassignedOverlay === 'function') closeUnassignedOverlay(); }catch(_){ }
+    try{ const lp = document.getElementById('leftPanel'); if (lp && unassignedStack && unassignedStack.parentElement !== lp) lp.appendChild(unassignedStack); }catch(_){ }
     document.body.classList.add('published');
     if (publishBtn) publishBtn.classList.add('hidden');
     if (exitPublishBtn) exitPublishBtn.classList.remove('hidden');
