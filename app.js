@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Left panel stack
   const unassignedStack = document.getElementById('unassignedStack');
   const unassignedCountEl = document.getElementById('unassignedCount');
+  const quarterSelect = document.getElementById('quarter');
 
   // Basic constants and helpers (kept small and explicit)
   const DAY_SET   = new Set(['DA','DB','DC','DL','DN','DH']);
@@ -56,12 +57,13 @@ document.addEventListener('DOMContentLoaded', () => {
     night: {0:'FHN',1:'FHN',2:'FHN',3:'FHN',4:'BHN',5:'BHN',6:'BHN'}
   };
 
-  // Tiles order matches DOM `board-card` order: process tiles only (WS tiles removed)
+  // Tiles order matches DOM `board-card` order: process tiles only (no Unassigned tile here)
   const TILES = [
     // Process tiles
-    ['tile-unassigned','unassigned'], ['tile-cb','cb'], ['tile-ibws','ibws'], ['tile-lineloaders','lineloaders'], ['tile-trickle','trickle'],
+    ['tile-cb','cb'], ['tile-ibws','ibws'], ['tile-lineloaders','lineloaders'], ['tile-trickle','trickle'],
     ['tile-dm','dm'], ['tile-idrt','idrt'], ['tile-pb','pb'], ['tile-e2s','e2s'], ['tile-dockws','dockws'],
-    ['tile-e2sws','e2sws'], ['tile-tpb','tpb'], ['tile-tws','tws'], ['tile-sap','sap'], ['tile-ao5s','ao5s']
+    ['tile-e2sws','e2sws'], ['tile-tpb','tpb'], ['tile-tws','tws'], ['tile-sap','sap'], ['tile-ao5s','ao5s'],
+    ['tile-pa','pa'], ['tile-ps','ps'], ['tile-laborshare','laborshare']
   ];
 
   // tile layers map key -> element
@@ -76,6 +78,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pair){ const key = pair[1]; tileBadgeLayers[key] = layer; }
     // make the layer itself accept drops
     makeDropTarget(layer, TILES[idx] ? TILES[idx][1] : null);
+
+    // Add an expand button to each tile header to open a pop-out view
+    try {
+      const pair2 = TILES[idx];
+      const tileKey = pair2 ? pair2[1] : null;
+      const hdr = card.querySelector('.tile-header');
+      if (hdr && tileKey) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'Expand tile';
+        btn.textContent = '⤢';
+        btn.style.marginLeft = '8px';
+        btn.style.border = '1px solid #374151';
+        btn.style.borderRadius = '6px';
+        btn.style.padding = '2px 6px';
+        btn.style.background = '#ffffff';
+        btn.style.color = '#1f2937';
+        btn.style.fontSize = '12px';
+        btn.addEventListener('click', () => {
+          const titleEl = hdr.querySelector('.font-semibold');
+          const title = titleEl ? titleEl.textContent : tileKey.toUpperCase();
+          openTileOverlay(tileKey, title);
+        });
+        hdr.appendChild(btn);
+      }
+    } catch (_){ }
   });
 
 
@@ -94,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // After mutating STATE, re-render the board to avoid DOM duplication and keep layering consistent.
     try{ renderAllBadges(); }catch(_){ }
     try{ setCounts(); }catch(_){ }
+    try{ if (typeof snapshotCurrentQuarter === 'function') snapshotCurrentQuarter(); }catch(_){ }
     return take;
   }
 
@@ -109,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try{ renderAllBadges(); }catch(_){ }
     try{ setCounts(); }catch(_){ }
+    try{ if (typeof snapshotCurrentQuarter === 'function') snapshotCurrentQuarter(); }catch(_){ }
     return take;
   }
 
@@ -121,6 +151,19 @@ document.addEventListener('DOMContentLoaded', () => {
       // set initial properties
       if (key === 'unassigned') el.readOnly = true;
       el.addEventListener('change', (ev) => {
+        // If quarter locked, confirm override
+        let doOverride = false;
+        if (STATE.quarterLocks && STATE.quarterLocks[STATE.currentQuarter]){
+          const ok = confirm(`Quarter ${STATE.currentQuarter} is locked. Override previous assignments with this change?`);
+          if (!ok){
+            const countsNowLocked = Object.values(STATE.badges).filter(b => b.loc === key).length;
+            el.value = String(countsNowLocked);
+            return;
+          }
+          doOverride = true;
+        }
+        // Track before-state for override logging
+        const beforeInTile = new Set(Object.values(STATE.badges).filter(b => b.loc === key).map(b => b.id));
         const desired = Number(el.value) || 0;
         const countsNow = Object.values(STATE.badges).filter(b => b.loc === key).length;
         if (desired > countsNow){
@@ -132,6 +175,21 @@ document.addEventListener('DOMContentLoaded', () => {
           unassignFromTile(key, toRemove);
         }
         setCounts();
+        // Snapshot the quarter after changes
+        try{ if (typeof snapshotCurrentQuarter === 'function') snapshotCurrentQuarter(); }catch(_){ }
+        // Log overrides for moved badges when applicable
+        if (doOverride){
+          const afterInTile = new Set(Object.values(STATE.badges).filter(b => b.loc === key).map(b => b.id));
+          // Added to tile: ids in after not in before
+          Object.values(STATE.badges).forEach(b => {
+            if (afterInTile.has(b.id) && !beforeInTile.has(b.id)){
+              addOverrideLog(b.id, 'unassigned', key);
+            }
+            if (beforeInTile.has(b.id) && !afterInTile.has(b.id)){
+              addOverrideLog(b.id, key, 'unassigned');
+            }
+          });
+        }
       });
     }
   });
@@ -156,6 +214,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.createElement('button'); closeBtn.className = 'text-sm text-gray-600 border rounded p-1'; closeBtn.textContent='✕'; closeBtn.addEventListener('click', closeUnassignedOverlay);
     hdr.appendChild(closeBtn);
     overlayEl.appendChild(hdr);
+
+    // Add search bar for unassigned list
+    const searchWrap = document.createElement('div');
+    searchWrap.style.margin = '6px 0 8px 0';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.id = 'unassignedSearch';
+    searchInput.placeholder = 'Search unassigned by name or ID...';
+    searchInput.setAttribute('aria-label','Search unassigned');
+    searchInput.style.width = '100%';
+    searchInput.style.border = '1px solid #d1d5db';
+    searchInput.style.borderRadius = '8px';
+    searchInput.style.padding = '8px 10px';
+    searchInput.style.fontSize = '13px';
+    searchWrap.appendChild(searchInput);
+    overlayEl.appendChild(searchWrap);
 
   // append overlay to body first so measurements work, then position it relative to leftPanel
   document.body.appendChild(overlayEl);
@@ -182,6 +256,24 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(()=>{ document.addEventListener('click', outsideClickHandler); }, 10);
     // re-render so the overlay shows the full unassigned list
     try{ renderAllBadges(); }catch(_){ }
+    // Hook up search filtering
+    try{
+      const searchInput = overlayEl.querySelector('#unassignedSearch');
+      if (searchInput){
+        const filter = () => {
+          const q = (searchInput.value || '').toLowerCase();
+          const items = Array.from(unassignedStack.querySelectorAll('.unassigned-item'));
+          items.forEach(el => {
+            const text = (el.textContent || '').toLowerCase();
+            const eid = (el.getAttribute('data-eid') || '').toLowerCase();
+            el.style.display = (!q || text.includes(q) || eid.includes(q)) ? '' : 'none';
+          });
+        };
+        searchInput.addEventListener('input', filter);
+        // initial no-op filter
+        filter();
+      }
+    }catch(_){ }
     // keep overlay positioned on resize/scroll
     _overlayRepositionHandler = () => repositionOverlay();
     window.addEventListener('resize', _overlayRepositionHandler);
@@ -219,6 +311,109 @@ document.addEventListener('DOMContentLoaded', () => {
   // ESC closes overlay
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlayEl) closeUnassignedOverlay(); });
 
+  // --- Tile pop-out overlay ---
+  let tileOverlayEl = null;
+  function openTileOverlay(tileKey, title){
+    if (tileOverlayEl) closeTileOverlay();
+    tileOverlayEl = document.createElement('div');
+    tileOverlayEl.id = 'tileOverlay_'+tileKey;
+    tileOverlayEl.style.position = 'fixed';
+    tileOverlayEl.style.top = '50%';
+    tileOverlayEl.style.left = '50%';
+    tileOverlayEl.style.transform = 'translate(-50%, -50%)';
+    tileOverlayEl.style.width = '720px';
+    tileOverlayEl.style.maxWidth = '95vw';
+    tileOverlayEl.style.maxHeight = '80vh';
+    tileOverlayEl.style.background = '#fff';
+    tileOverlayEl.style.border = '2px solid #374151';
+    tileOverlayEl.style.borderRadius = '12px';
+    tileOverlayEl.style.boxShadow = '0 20px 40px rgba(0,0,0,0.25)';
+    tileOverlayEl.style.zIndex = '1100';
+    tileOverlayEl.style.display = 'flex';
+    tileOverlayEl.style.flexDirection = 'column';
+
+    // header
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.background = '#1f2937';
+    header.style.color = '#fff';
+    header.style.padding = '12px 16px';
+    header.style.borderTopLeftRadius = '10px';
+    header.style.borderTopRightRadius = '10px';
+    const hTitle = document.createElement('div'); hTitle.textContent = title || tileKey.toUpperCase(); hTitle.style.fontWeight = '800';
+    const controls = document.createElement('div');
+    const search = document.createElement('input');
+    search.type = 'text'; search.placeholder = 'Search...';
+    search.style.marginRight = '8px'; search.style.padding = '6px 8px'; search.style.borderRadius = '6px'; search.style.border = '1px solid #d1d5db';
+    const closeBtn = document.createElement('button'); closeBtn.textContent = '✕'; closeBtn.title = 'Close';
+    closeBtn.style.padding = '4px 8px'; closeBtn.style.borderRadius = '6px'; closeBtn.style.border = '1px solid #374151'; closeBtn.style.background = '#fff'; closeBtn.style.color = '#1f2937';
+    closeBtn.addEventListener('click', closeTileOverlay);
+    controls.appendChild(search); controls.appendChild(closeBtn);
+    header.appendChild(hTitle); header.appendChild(controls);
+    tileOverlayEl.appendChild(header);
+
+    // content
+    const content = document.createElement('div');
+    content.style.padding = '12px';
+    content.style.overflow = 'auto';
+    content.style.flex = '1 1 auto';
+    const layer = document.createElement('div');
+    layer.className = 'badge-layer path-box';
+    layer.style.minHeight = '300px';
+    content.appendChild(layer);
+    tileOverlayEl.appendChild(content);
+    document.body.appendChild(tileOverlayEl);
+
+    // Make it a drop target for the tile
+    makeDropTarget(layer, tileKey);
+
+    // Render badges currently in this tile
+    try{
+      Object.values(STATE.badges).forEach(b => {
+        if (b.loc === tileKey){
+          const node = renderBadge(b);
+          if (b.present){ node.classList.add('present'); }
+          layer.appendChild(node);
+        }
+      });
+    }catch(_){ }
+
+    // Simple search filter
+    const doFilter = () => {
+      const q = (search.value || '').toLowerCase();
+      Array.from(layer.children).forEach(el => {
+        if (!el.classList || !el.classList.contains('badge')) return;
+        const text = (el.textContent || '').toLowerCase();
+        const eid = (el.getAttribute('data-id') || '').toLowerCase();
+        el.style.display = (!q || text.includes(q) || eid.includes(q)) ? '' : 'none';
+      });
+    };
+    search.addEventListener('input', doFilter);
+    doFilter();
+
+    // backdrop (click outside to close)
+    const backdrop = document.createElement('div');
+    backdrop.style.position = 'fixed'; backdrop.style.left = '0'; backdrop.style.top = '0'; backdrop.style.right = '0'; backdrop.style.bottom = '0';
+    backdrop.style.background = 'rgba(0,0,0,0.35)'; backdrop.style.zIndex = '1099';
+    backdrop.addEventListener('click', closeTileOverlay);
+    document.body.appendChild(backdrop);
+    tileOverlayEl._backdrop = backdrop;
+
+    // Prevent body scroll while open
+    try{ document.body.style.overflow = 'hidden'; }catch(_){ }
+  }
+
+  function closeTileOverlay(){
+    if (!tileOverlayEl) return;
+    if (tileOverlayEl._backdrop && tileOverlayEl._backdrop.parentElement) tileOverlayEl._backdrop.parentElement.removeChild(tileOverlayEl._backdrop);
+    if (tileOverlayEl.parentElement) tileOverlayEl.parentElement.removeChild(tileOverlayEl);
+    tileOverlayEl = null;
+    try{ document.body.style.overflow = ''; }catch(_){ }
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tileOverlayEl) closeTileOverlay(); });
+
   // In-memory badge store with analytics tracking
   const STATE = { 
     badges: {},
@@ -227,7 +422,10 @@ document.addEventListener('DOMContentLoaded', () => {
       sessions: [], // Work sessions data
       performance: {}, // Employee performance metrics
       patterns: {} // Assignment pattern analysis
-    }
+    },
+    currentQuarter: 'Q1',
+    quarterAssignments: { Q1: {}, Q2: {}, Q3: {} },
+    quarterLocks: { Q1: false, Q2: false, Q3: false }
   };
 
   // Analytics and Data Collection System
@@ -246,6 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         employeeName: badge.name,
         shiftCode: badge.scode,
         site: badge.site,
+  quarter: STATE.currentQuarter || 'Q1',
         fromLocation: fromLoc,
         toLocation: toLoc,
         action: fromLoc === 'unassigned' ? 'assign' : (toLoc === 'unassigned' ? 'unassign' : 'reassign'),
@@ -472,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Identify training needs based on process gaps
     identifyTrainingNeeds: function(metrics) {
-      const allProcesses = ['cb', 'ibws', 'lineloaders', 'trickle', 'dm', 'idrt', 'pb', 'e2s', 'dockws', 'e2sws', 'tpb', 'tws', 'sap', 'ao5s'];
+      const allProcesses = ['cb', 'ibws', 'lineloaders', 'trickle', 'dm', 'idrt', 'pb', 'e2s', 'dockws', 'e2sws', 'tpb', 'tws', 'sap', 'ao5s', 'pa', 'ps', 'laborshare'];
       const experienced = Object.keys(metrics.processExperience);
       const gaps = allProcesses.filter(process => !experienced.includes(process));
       
@@ -849,6 +1048,85 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[ROTATION] Assignments locked and processed in-app:', lockRecord);
         return lockRecord;
       },
+
+      // Lock assignments for a specific quarter without disabling UI globally
+      lockQuarter: function(quarter) {
+        const q = quarter || (STATE.currentQuarter || 'Q1');
+        const timestamp = new Date().toISOString();
+        const currentSession = ANALYTICS.getCurrentSessionId();
+        if (!currentSession) {
+          alert('No active session to lock. Please start a session first.');
+          return null;
+        }
+
+        // Build lock record similar to full lock, with quarter tag
+        const lockRecord = {
+          id: `lock_${q}_${Date.now()}`,
+          quarter: q,
+          timestamp,
+          sessionId: currentSession,
+          date: new Date().toDateString(),
+          assignments: {},
+          rotationScores: {},
+          nextRecommendations: {}
+        };
+
+        // Capture current assignments snapshot into quarterAssignments as well
+        STATE.quarterAssignments[q] = {};
+        Object.values(STATE.badges).forEach(badge => {
+          STATE.quarterAssignments[q][badge.id] = badge.loc;
+          if (badge.loc !== 'unassigned') {
+            if (!lockRecord.assignments[badge.loc]) lockRecord.assignments[badge.loc] = [];
+            lockRecord.assignments[badge.loc].push({
+              employeeId: badge.eid,
+              employeeName: badge.name,
+              shiftCode: badge.scode,
+              site: badge.site
+            });
+          }
+        });
+
+        // Rotation scores and next recommendations
+        Object.values(STATE.analytics.performance).forEach(emp => {
+          lockRecord.rotationScores[emp.employeeId] = this.calculateRotationScore(emp.employeeId);
+        });
+        lockRecord.nextRecommendations = this.generateRotationRecommendations();
+
+        // Persist quarter lock record
+        STATE.analytics.quarterLocks = STATE.analytics.quarterLocks || [];
+        STATE.analytics.quarterLocks.push(lockRecord);
+        STATE.quarterLocks[q] = true;
+          // Log a 'lock' entry per assignment so search reflects the locked quarter
+          Object.entries(lockRecord.assignments).forEach(([process, employees]) => {
+            (employees || []).forEach(emp => {
+              const badge = Object.values(STATE.badges).find(b => b.eid === emp.employeeId);
+              const logEntry = {
+                id: `log_${q}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                timestamp: new Date().toISOString(),
+                date: new Date().toDateString(),
+                badgeId: badge ? badge.id : `emp_${emp.employeeId}`,
+                employeeId: emp.employeeId,
+                employeeName: emp.employeeName,
+                shiftCode: emp.shiftCode,
+                site: emp.site,
+                quarter: q,
+                fromLocation: process,
+                toLocation: process,
+                action: 'lock',
+                duration: null,
+                sessionId: currentSession
+              };
+              STATE.analytics.history.push(logEntry);
+            });
+          });
+          ANALYTICS.saveAnalyticsData();
+
+        // Optionally open rotation management panel
+        this.showRotationManagementPanel();
+        // Do NOT disable the lock button globally; just provide lightweight feedback
+        console.log(`[ROTATION] Quarter ${q} locked`, lockRecord);
+        return lockRecord;
+      },
       
       // Calculate fairness score for employee rotation
       calculateRotationScore: function(employeeId) {
@@ -910,7 +1188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const emp = STATE.analytics.performance[employeeId];
         if (!emp) return [];
         
-        const allProcesses = ['cb', 'ibws', 'lineloaders', 'trickle', 'dm', 'idrt', 'pb', 'e2s', 'dockws', 'e2sws', 'tpb', 'tws', 'sap', 'ao5s'];
+  const allProcesses = ['cb', 'ibws', 'lineloaders', 'trickle', 'dm', 'idrt', 'pb', 'e2s', 'dockws', 'e2sws', 'tpb', 'tws', 'sap', 'ao5s', 'pa', 'ps', 'laborshare'];
         const experienced = Object.keys(emp.processExperience);
         const experienceCounts = emp.processExperience;
         
@@ -1229,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Analyze process staffing needs
       analyzeProcessNeeds: function(lockRecord) {
         const processNeeds = {};
-        const allProcesses = ['cb', 'ibws', 'lineloaders', 'trickle', 'dm', 'idrt', 'pb', 'e2s', 'dockws', 'e2sws', 'tpb', 'tws', 'sap', 'ao5s'];
+        const allProcesses = ['cb', 'ibws', 'lineloaders', 'trickle', 'dm', 'idrt', 'pb', 'e2s', 'dockws', 'e2sws', 'tpb', 'tws', 'sap', 'ao5s', 'pa', 'ps', 'laborshare'];
         
         allProcesses.forEach(process => {
           const currentAssigned = lockRecord.assignments[process] ? lockRecord.assignments[process].length : 0;
@@ -1879,6 +2157,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load analytics data on startup
   ANALYTICS.loadAnalyticsData();
+  // Load saved quarter snapshots if available
+  try{
+    const qa = localStorage.getItem('vlab:quarterAssignments');
+    if (qa){ const parsed = JSON.parse(qa); if (parsed && typeof parsed === 'object') STATE.quarterAssignments = Object.assign({Q1:{},Q2:{},Q3:{}}, parsed); }
+  }catch(_){ }
   
   // Debug function to test analytics
   window.debugAnalytics = function() {
@@ -1888,6 +2171,29 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // --- helpers ---
+  function addOverrideLog(badgeId, fromLoc, toLoc){
+    const badge = STATE.badges[badgeId];
+    const ts = new Date();
+    const entry = {
+      id: `override_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
+      timestamp: ts.toISOString(),
+      date: ts.toDateString(),
+      badgeId: badgeId,
+      employeeId: badge ? badge.eid : undefined,
+      employeeName: badge ? badge.name : undefined,
+      shiftCode: badge ? badge.scode : undefined,
+      site: badge ? badge.site : undefined,
+      quarter: STATE.currentQuarter || 'Q1',
+      fromLocation: fromLoc,
+      toLocation: toLoc,
+      action: 'override',
+      duration: null,
+      sessionId: ANALYTICS.getCurrentSessionId()
+    };
+    STATE.analytics.history.push(entry);
+    try{ ANALYTICS.saveAnalyticsData(); }catch(_){ }
+  }
+
   function parseInputDate(dateStr){
     if (!dateStr) return null;
     // accept dd/mm/yyyy
@@ -1994,6 +2300,13 @@ document.addEventListener('DOMContentLoaded', () => {
     container.addEventListener('dragleave', () => { container.classList && container.classList.remove('ring','ring-indigo-300'); });
     container.addEventListener('drop', (e) => {
       e.preventDefault(); container.classList && container.classList.remove('ring','ring-indigo-300');
+      // If quarter is locked, ask if user wants to override
+      let isOverride = false;
+      if (STATE.quarterLocks && STATE.quarterLocks[STATE.currentQuarter]){
+        const ok = confirm(`Quarter ${STATE.currentQuarter} is locked. Override previous assignments with this change?`);
+        if (!ok) return;
+        isOverride = true;
+      }
       const payload = e.dataTransfer.getData('text/plain');
       if (!payload) return;
       // payload may be employee id (preferred) or DOM id
@@ -2017,9 +2330,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const newLocation = key || 'unassigned';
       
       STATE.badges[badgeId].loc = newLocation;
+      // Save change into current quarter snapshot
+      try{
+        STATE.quarterAssignments[STATE.currentQuarter] = STATE.quarterAssignments[STATE.currentQuarter] || {};
+        STATE.quarterAssignments[STATE.currentQuarter][badgeId] = newLocation;
+      }catch(_){ }
       
-      // Log the assignment change
-      ANALYTICS.logAssignment(badgeId, oldLocation, newLocation);
+      // Log the assignment (override when applicable)
+      if (isOverride) addOverrideLog(badgeId, oldLocation, newLocation);
+      else ANALYTICS.logAssignment(badgeId, oldLocation, newLocation);
       
       // move DOM node into container (append will move, not clone)
       if ((key || 'unassigned') === 'unassigned') unassignedStack.appendChild(node);
@@ -2276,7 +2595,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ]).then(([roster, swaps, vetvto, labshare]) => {
       console.debug('[build] rosterFile=', rosterFile && rosterFile.name, 'size=', rosterFile && rosterFile.size);
       console.debug('[build] parsed roster rows=', Array.isArray(roster) ? roster.length : typeof roster, roster && roster[0]);
-      const siteSel = form.site.value;
+  const siteSel = form.site.value;
+  const quarterSel = (quarterSelect && quarterSelect.value) || 'Q1';
       const dateStr = form.date.value;
       const shiftSel = form.querySelector('input[name="shift"]:checked')?.value || 'day';
       const d = parseInputDate(dateStr); const dow = d?.getDay() ?? 0;
@@ -2284,7 +2604,8 @@ document.addEventListener('DOMContentLoaded', () => {
       elDay.textContent = d ? shortDay[dow] : '-';
       elShift.textContent = shiftSel[0].toUpperCase() + shiftSel.slice(1);
       elType.textContent = shiftTypeMap[shiftSel][dow];
-      elSite.textContent = siteSel;
+  elSite.textContent = siteSel;
+  STATE.currentQuarter = quarterSel;
 
       const allowed = new Set(getAllowedCodes(dateStr, shiftSel));
       if (allowed.size){ codesBar.classList.remove('hidden'); codesBar.textContent = `Codes active for ${dayNames[dow]} (${elShift.textContent}): ${[...allowed].sort().join(', ')}`; }
@@ -2328,7 +2649,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const plannedHC = baseHC - swapOUT + swapIN + vet - vto + lsIN - lsOUT;
       elPlan.textContent = String(plannedHC); elActual.textContent = '0';
 
-      STATE.badges = {};
+  STATE.badges = {};
       filtered.forEach((r, idx) => {
         const name = String(r['Employee Name'] ?? r['Name'] ?? r['Full Name'] ?? '').trim();
         const eid  = String(r['Employee ID'] ?? r['ID'] ?? r['EID'] ?? r['Employee Number'] ?? '').trim();
@@ -2344,7 +2665,9 @@ document.addEventListener('DOMContentLoaded', () => {
         output.textContent = 'No badges created — check CSV headers and active status field.';
         console.warn('[build] no badges in STATE.badges');
       }
-      renderAllBadges();
+  renderAllBadges();
+  // Snapshot initial quarter state (all current locs)
+  try{ STATE.quarterAssignments[STATE.currentQuarter] = {}; Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[STATE.currentQuarter][b.id] = b.loc; }); }catch(_){ }
       setupVPH(plannedHC);
       output.textContent = '';
 
@@ -2360,7 +2683,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // persist compact snapshot so user can reload without re-uploading CSV
       try{
-        const snap = { badges: STATE.badges, meta: { date: dateStr, shift: shiftSel, site: siteSel, plannedHC } };
+  const snap = { badges: STATE.badges, meta: { date: dateStr, shift: shiftSel, site: siteSel, plannedHC, quarter: STATE.currentQuarter } };
         localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
         console.debug('[save] saved roster snapshot to localStorage (vlab:lastRoster)');
       }catch(_){ /* ignore storage failures */ }
@@ -2386,6 +2709,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (snap.meta.shift) { const r = document.querySelector(`input[name="shift"][value="${snap.meta.shift}"]`); if (r) r.checked = true; }
         if (snap.meta.site) document.getElementById('site').value = snap.meta.site;
         if (snap.meta.plannedHC) document.getElementById('plannedVolumeStub').value = snap.meta.plannedHC;
+        if (snap.meta.quarter && quarterSelect){ quarterSelect.value = snap.meta.quarter; STATE.currentQuarter = snap.meta.quarter; }
       }
       renderAllBadges();
       setupVPH(Number((snap.meta && snap.meta.plannedHC) || 0));
@@ -2468,6 +2792,74 @@ document.addEventListener('DOMContentLoaded', () => {
   // Analytics tab management
   const analyticsTabs = document.querySelectorAll('.analytics-tab');
   const analyticsTabContents = document.querySelectorAll('.analytics-tab-content');
+  const analyticsSearchInput = document.getElementById('analyticsSearchInput');
+  const analyticsSearchResults = document.getElementById('analyticsSearchResults');
+  
+  // ----- Quarter helpers -----
+  function nextProcessKey(key){
+    const ring = TILES.map(t => t[1]).filter(k => k !== 'unassigned');
+    const idx = ring.indexOf(key);
+    if (idx === -1) return key;
+    return ring[(idx + 1) % ring.length];
+  }
+
+  function snapshotCurrentQuarter(){
+    const q = STATE.currentQuarter || 'Q1';
+    STATE.quarterAssignments[q] = {};
+    Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[q][b.id] = b.loc; });
+    try{ localStorage.setItem('vlab:quarterAssignments', JSON.stringify(STATE.quarterAssignments)); }catch(_){ }
+  }
+
+  function applyQuarterAssignments(q){
+    const snap = (STATE.quarterAssignments && STATE.quarterAssignments[q]) || null;
+    if (!snap) return;
+    Object.entries(snap).forEach(([bid, loc]) => { if (STATE.badges[bid]) STATE.badges[bid].loc = loc; });
+    renderAllBadges();
+  }
+
+  function rotateFromTo(prevQ, newQ){
+    // Simple round-robin rotation across process ring
+    const prevSnap = STATE.quarterAssignments[prevQ] || null;
+    if (!prevSnap) { snapshotCurrentQuarter(); return; }
+    STATE.quarterAssignments[newQ] = {};
+    Object.entries(prevSnap).forEach(([bid, prevLoc]) => {
+      if (!STATE.badges[bid]) return;
+      if (prevLoc && prevLoc !== 'unassigned'){
+        const newLoc = nextProcessKey(prevLoc);
+        const oldLoc = STATE.badges[bid].loc;
+        STATE.badges[bid].loc = newLoc;
+        STATE.quarterAssignments[newQ][bid] = newLoc;
+        // Log as reassignment under new quarter
+        ANALYTICS.logAssignment(bid, oldLoc, newLoc);
+      } else {
+        STATE.quarterAssignments[newQ][bid] = 'unassigned';
+      }
+    });
+    renderAllBadges();
+    try{ localStorage.setItem('vlab:quarterAssignments', JSON.stringify(STATE.quarterAssignments)); }catch(_){ }
+  }
+
+  function isQuarterLocked(q){ return !!(STATE.quarterLocks && STATE.quarterLocks[q]); }
+  function handleQuarterChange(){
+    const newQ = (quarterSelect && quarterSelect.value) || 'Q1';
+    const prevQ = STATE.currentQuarter;
+    if (newQ === prevQ) return;
+    STATE.currentQuarter = newQ;
+    // If we have a saved snapshot for newQ, apply it; else rotate from prevQ
+    if (STATE.quarterAssignments && STATE.quarterAssignments[newQ] && Object.keys(STATE.quarterAssignments[newQ]).length > 0){
+      applyQuarterAssignments(newQ);
+    } else if (prevQ){
+      rotateFromTo(prevQ, newQ);
+    } else {
+      snapshotCurrentQuarter();
+    }
+    // Persist meta with quarter
+    try{
+      const raw = localStorage.getItem('vlab:lastRoster');
+      if (raw){ const snap = JSON.parse(raw); if (snap && snap.meta){ snap.meta.quarter = newQ; localStorage.setItem('vlab:lastRoster', JSON.stringify(snap)); } }
+    }catch(_){ }
+  }
+  quarterSelect && quarterSelect.addEventListener('change', handleQuarterChange);
 
   analyticsTabs.forEach(tab => {
     tab.addEventListener('click', () => {
@@ -2488,11 +2880,150 @@ document.addEventListener('DOMContentLoaded', () => {
   function openAnalytics() {
     analyticsModal.classList.remove('hidden');
     loadAnalyticsContent('overview'); // Load initial content
+    // Focus search for quick access
+    analyticsSearchInput && analyticsSearchInput.focus();
   }
 
   function closeAnalytics() {
     analyticsModal.classList.add('hidden');
+    // Clear search state when closing
+    if (analyticsSearchInput) analyticsSearchInput.value = '';
+    if (analyticsSearchResults) analyticsSearchResults.classList.add('hidden');
+    if (analyticsSearchResults) analyticsSearchResults.innerHTML = '';
   }
+
+  // --- Analytics Search (Associate history across quarters) ---
+  function ensureEmployeeIndex(){
+    // Rebuild employee index from analytics history on each call to ensure freshness
+    if (!STATE.analytics) STATE.analytics = {};
+    STATE.analytics.employees = {};
+    (STATE.analytics.history || []).forEach(h => {
+      const login = h.employeeId || h.badgeId || h.eid;
+      if (!login) return;
+      if (!STATE.analytics.employees[login]){
+        STATE.analytics.employees[login] = {
+          login: login,
+          name: h.employeeName || '',
+          history: []
+        };
+      }
+      // Map into expected fields with sensible fallbacks
+      const rec = {
+        date: h.date || h.timestamp || '',
+        shiftType: h.shiftCode ? (String(h.shiftCode).toUpperCase().startsWith('N') ? 'Night' : 'Day') : '',
+        quarter: h.quarter || '',
+        ls: (typeof h.ls !== 'undefined') ? (h.ls ? 'Yes' : 'No') : 'No',
+        assigned: (h.action === 'assign' || h.action === 'reassign' || h.action === 'lock') ? 'Yes' : 'No',
+        process: h.toLocation || '',
+        employeeId: h.employeeId || '',
+        employeeName: h.employeeName || STATE.analytics.employees[login].name || ''
+      };
+      STATE.analytics.employees[login].history.push(rec);
+    });
+  }
+
+  function parseQuarterValue(q){
+    const s = String(q || '').toUpperCase();
+    if (s === 'Q1') return 1; if (s === 'Q2') return 2; if (s === 'Q3') return 3; if (s === 'Q4') return 4;
+    return 99;
+  }
+
+  function normalizeDateToYMD(v){
+    if (!v) return '';
+    if (typeof v === 'string' && /\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+    if (typeof v === 'string'){
+      const d = parseInputDate(v);
+      if (d) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    if (v instanceof Date){
+      return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+    }
+    return String(v);
+  }
+
+  function renderSearchResults(query){
+    if (!analyticsSearchResults) return;
+    const q = String(query || '').trim();
+    if (!q){
+      analyticsSearchResults.classList.add('hidden');
+      analyticsSearchResults.innerHTML = '';
+      return;
+    }
+    ensureEmployeeIndex();
+    const employees = STATE.analytics.employees || {};
+    const lower = q.toLowerCase();
+    // Collect matches by login or name
+    const entries = Object.entries(employees).filter(([login, data]) => {
+      const name = (data && (data.name || data.employeeName)) || '';
+      return String(login).toLowerCase().includes(lower) || String(name).toLowerCase().includes(lower);
+    });
+
+    // Flatten all history rows
+    let rows = [];
+    entries.forEach(([login, data]) => {
+      const hist = (data && Array.isArray(data.history)) ? data.history : [];
+      hist.forEach(r => {
+        rows.push({
+          date: normalizeDateToYMD(r.date || r.Date || r.timestamp),
+          shiftType: r.shiftType || r.ShiftType || r.shift_type || '',
+          quarter: r.quarter || r.Quarter || '',
+          ls: (r.ls === true || String(r.ls).toLowerCase() === 'yes') ? 'Yes' : 'No',
+          assigned: (r.assigned === true || String(r.assigned).toLowerCase() === 'yes') ? 'Yes' : (r.action ? ((r.action === 'assign' || r.action === 'reassign') ? 'Yes' : 'No') : 'No'),
+          process: r.process || r.Process || r.toLocation || '',
+          employeeId: r.employeeId || r.EmployeeID || r.eid || login,
+          employeeName: r.employeeName || r.EmployeeName || data.name || ''
+        });
+      });
+    });
+
+    if (rows.length === 0){
+      analyticsSearchResults.innerHTML = '<div class="muted">No records found.</div>';
+      analyticsSearchResults.classList.remove('hidden');
+      return;
+    }
+
+    // Sort by Date asc then Quarter order Q1->Q2->Q3->Q4
+    rows.sort((a,b) => {
+      const da = a.date || ''; const db = b.date || '';
+      if (da !== db) return da < db ? -1 : 1;
+      return parseQuarterValue(a.quarter) - parseQuarterValue(b.quarter);
+    });
+
+  const total = rows.length;
+  // Render header + table (no LS summary per request)
+  const header = `<div class="results-header"><span>Matches: <strong>${total}</strong></span></div>`;
+    const tableHead = `
+      <thead><tr>
+        <th>Date</th>
+        <th>Shift Type</th>
+        <th>Quarter</th>
+        <th>LS</th>
+        <th>Assigned</th>
+        <th>Process</th>
+        <th>Employee ID</th>
+        <th>Employee Name</th>
+      </tr></thead>`;
+    const tableBody = `<tbody>${rows.map(r => `
+      <tr>
+        <td>${r.date || ''}</td>
+        <td>${r.shiftType || ''}</td>
+        <td>${r.quarter || ''}</td>
+        <td>${r.ls}</td>
+        <td>${r.assigned}</td>
+        <td>${(r.process||'').toString().toUpperCase()}</td>
+        <td>${r.employeeId || ''}</td>
+        <td>${r.employeeName || ''}</td>
+      </tr>
+    `).join('')}</tbody>`;
+
+    analyticsSearchResults.innerHTML = header + `<table>${tableHead}${tableBody}</table>`;
+    analyticsSearchResults.classList.remove('hidden');
+  }
+
+  // Bind search input (responsive updates)
+  analyticsSearchInput && analyticsSearchInput.addEventListener('input', (e) => {
+    renderSearchResults(e.target.value);
+  });
 
   function loadAnalyticsContent(tabName) {
     switch(tabName) {
@@ -3394,17 +3925,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Confirm lock action
-    const confirmMessage = `Lock ${assignedBadges.length} assignments and activate smart rotation system?\n\nThis will:\n• Lock current assignments\n• Generate smart assignment queue for next shift\n• Show rotation management panel\n• Track fairness and create alerts\n\nProceed?`;
+    // Confirm quarter lock action
+    const currQ = STATE.currentQuarter || 'Q1';
+    if (STATE.quarterLocks && STATE.quarterLocks[currQ]){ alert(`Quarter ${currQ} is already locked.`); return; }
+    const confirmMessage = `Lock ${assignedBadges.length} assignments for ${currQ}?\n\nThis will:\n• Freeze current quarter assignments\n• Include quarter in analytics logs\n• Generate smart rotation recommendations\n\nProceed?`;
     
     if (!confirm(confirmMessage)) return;
     
     try {
-      // Lock assignments and activate rotation system
-      const lockRecord = ANALYTICS.ROTATION.lockAssignments();
+  // Lock only current quarter and activate rotation insights without disabling UI globally
+  const lockRecord = ANALYTICS.ROTATION.lockQuarter(currQ);
       
       if (lockRecord) {
-        alert(`✅ Smart Rotation System Activated!\n\n• Assignments locked and analyzed\n• Smart assignment queue generated\n• Rotation management panel opened\n• Fairness alerts created\n\nCheck the rotation panel on the right for smart recommendations.`);
+  alert(`✅ ${currQ} Locked!\n\n• Assignments frozen for ${currQ}\n• Rotation insights updated\n• Use Quarter dropdown to work on other quarters.`);
       }
     } catch (error) {
       console.error('[LOCK] Error locking assignments:', error);

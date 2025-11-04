@@ -382,14 +382,15 @@ body.published .line-row .board-card{ min-height:160px; }
   font-weight:800;
   border:2px solid #374151;
   border-radius:8px;
-  background:#f9fafb;
+  background:#ffffff; /* stronger contrast on dark header */
+  color:#111827;      /* ensure digits are clearly visible */
 }
 
 /* Process grid badges - sized to show exactly two badges */
 .process-grid .badge-layer{
   min-height:200px;
-  max-height:220px;
-  overflow-y:hidden;
+  max-height:360px; /* allow more than ~4 badges to be visible */
+  overflow-y:auto;  /* scroll within tile when content exceeds max-height */
   display:flex !important;
   flex-wrap:wrap !important;
   gap:8px !important;
@@ -575,6 +576,60 @@ body.published .line-row .board-card{ min-height:160px; }
   background: #f9fafb;
   border-top: 1px solid #e5e7eb;
   justify-content: flex-end;
+}
+
+/* Analytics search */
+.analytics-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+.analytics-search-input {
+  width: 100%;
+  outline: none;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.analytics-search-results {
+  margin-top: 10px;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+}
+.analytics-search-results .results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 6px;
+}
+.analytics-search-results table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.analytics-search-results thead th {
+  position: sticky;
+  top: 0;
+  background: #f3f4f6;
+  color: #111827;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 6px;
+}
+.analytics-search-results tbody td {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 6px;
+  color: #374151;
+}
+.analytics-search-results .muted {
+  color: #6b7280;
 }
 
 /* Analytics data display styles */

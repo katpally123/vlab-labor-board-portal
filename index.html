@@ -21,8 +21,8 @@
         </div>
       </div>
       <div class="board-title text-center flex-1">
-        <div class="main-title">DAYSHIFT IXD STAFFING BOARD – SORT STATION</div>
-        <div class="sub-title text-sm text-gray-500">Interactive virtual labor assignment board</div>
+        <div class="main-title">AMAZON VIRTUAL LABOR ASSIGNMENT BOARD</div>
+        <div class="sub-title text-sm text-gray-500">Demo 1.0</div>
       </div>
       <div class="header-blocks flex items-center gap-3">
         <div class="header-block">
@@ -72,6 +72,15 @@
         <select id="site" name="site" class="border p-2 rounded w-28" required>
           <option value="YHM2">YHM2</option>
           <option value="YDD2">YDD2</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="quarter" class="block font-semibold mb-1 text-sm">Quarter</label>
+        <select id="quarter" name="quarter" class="border p-2 rounded w-28" required>
+          <option value="Q1">Q1</option>
+          <option value="Q2">Q2</option>
+          <option value="Q3">Q3</option>
         </select>
       </div>
 
@@ -141,7 +150,6 @@
         <!-- Board canvas (whiteboard) -->
   <div class="board-canvas bg-white border rounded-lg p-2 shadow-sm">
     <div class="process-grid">
-      <div class="board-card"><div class="tile-header"><span class="font-semibold">Unassigned</span><input id="tile-unassigned" class="board-count-input" type="number" min="0" readonly></div></div>
       <div class="board-card"><div class="tile-header"><span class="font-semibold">CB</span><input id="tile-cb" class="board-count-input" type="number" min="0"></div></div>
       <div class="board-card"><div class="tile-header"><span class="font-semibold">IB WS</span><input id="tile-ibws" class="board-count-input" type="number" min="0"></div></div>
       <div class="board-card"><div class="tile-header"><span class="font-semibold">Line Loaders</span><input id="tile-lineloaders" class="board-count-input" type="number" min="0"></div></div>
@@ -158,6 +166,11 @@
       <div class="board-card"><div class="tile-header"><span class="font-semibold">Tote WS</span><input id="tile-tws" class="board-count-input" type="number" min="0"></div></div>
       <div class="board-card"><div class="tile-header"><span class="font-semibold">SAP</span><input id="tile-sap" class="board-count-input" type="number" min="0"></div></div>
       <div class="board-card"><div class="tile-header"><span class="font-semibold">AO/5S</span><input id="tile-ao5s" class="board-count-input" type="number" min="0"></div></div>
+
+      <!-- New process paths -->
+      <div class="board-card"><div class="tile-header"><span class="font-semibold">PA (Process Assistant)</span><input id="tile-pa" class="board-count-input" type="number" min="0"></div></div>
+      <div class="board-card"><div class="tile-header"><span class="font-semibold">PS (Problem Solvers)</span><input id="tile-ps" class="board-count-input" type="number" min="0"></div></div>
+      <div class="board-card"><div class="tile-header"><span class="font-semibold">Labor Share</span><input id="tile-laborshare" class="board-count-input" type="number" min="0"></div></div>
     </div>
   </div>
       </div>
@@ -191,6 +204,12 @@
       <div class="analytics-header">
         <h2 class="text-xl font-bold">Workforce Analytics</h2>
         <button id="closeAnalyticsBtn" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+      </div>
+
+      <!-- Analytics Search -->
+      <div class="analytics-search">
+        <input id="analyticsSearchInput" type="text" class="analytics-search-input" placeholder="Search by associate login or name..." aria-label="Search analytics by associate login or name" />
+        <div id="analyticsSearchResults" class="analytics-search-results hidden" aria-live="polite"></div>
       </div>
       
       <div class="analytics-tabs">
