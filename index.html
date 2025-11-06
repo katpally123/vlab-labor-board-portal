@@ -118,6 +118,13 @@
             <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden">
             <span class="ml-2 file-label" id="label-laborshare"></span>
           </label>
+          <label class="pill-label">Upload
+            <input type="file" id="missing" name="missing" accept=".csv" class="hidden">
+            <span class="ml-2 file-label" id="label-missing"></span>
+          </label>
+        </div>
+        <div class="text-xs text-gray-600 mt-1">
+          <button type="button" id="downloadTemplateBtn" class="text-blue-600 hover:text-blue-800 underline">📄 Download Upload Template</button>
         </div>
       </div>
 
@@ -193,7 +200,7 @@
 
   <script>
     // Show file names
-    ['roster','swap','vetvto','laborshare'].forEach(function(id) {
+    ['roster','swap','vetvto','laborshare','missing'].forEach(function(id) {
       const input = document.getElementById(id);
       const label = document.getElementById('label-'+id);
       if (!input) return;
@@ -205,6 +212,21 @@
         window.__LAST_UPLOADS = window.__LAST_UPLOADS || {};
         window.__LAST_UPLOADS[id] = (input.files && input.files[0]) ? input.files[0] : null;
       });
+    });
+
+    // Download Upload Template
+    document.getElementById('downloadTemplateBtn')?.addEventListener('click', () => {
+      const templateData = `Employee ID\tUser ID\tEmployee Name\tBadge Barcode ID\tDepartment ID\tEmployment Start Date\tEmployment Type\tEmployee Status\tManager Name\tManagement Area ID\tShift Pattern
+110888249\tqruchikr\tRuchika,Ruchika\t13966332\t1299020\tWed Sep 22 00:00:00 UTC 2021\tAMZN\tActive\tBhatt,Devashish\t3\tDA6C0700
+110888250\texample1\tJohn,Smith\t13966333\t1299021\tMon Jan 15 00:00:00 UTC 2024\tAMZN\tActive\tManager,Jane\t3\tDB6C0700`;
+      
+      const blob = new Blob([templateData], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'upload-template.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      console.log('[TEMPLATE] Downloaded upload template');
     });
   </script>
   <!-- Analytics Dashboard Modal -->

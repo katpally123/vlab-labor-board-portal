@@ -39,6 +39,77 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); 
 }
 
+/* Site badges in analytics */
+.site-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: white;
+  min-width: 40px;
+}
+
+.site-badge.site-ydd2 {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.site-badge.site-ydd4 {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.site-badge.site-yhm2 {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+}
+
+.site-badge.site- {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+/* Analytics assignment display */
+.site-assignment-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.site-assignment-section h5 {
+  margin: 0 0 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.process-assignment {
+  margin: 8px 0;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  border-left: 3px solid #3b82f6;
+}
+
+.employee-name {
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+.no-assignments {
+  color: #6b7280;
+  font-style: italic;
+  margin: 10px 0;
+}
+
+.history-item .history-action .site-badge {
+  margin-right: 8px;
+}
+
 /* Make the header feel like a fixed physical header bar */
 .board-header{ position:sticky; top:0; z-index:60; background:#fff; box-shadow:0 2px 10px rgba(2,6,23,0.04); }
 
@@ -126,6 +197,18 @@
   width:16px; height:16px; border-radius:4px; background:#e6f7ee; color:#059669; display:flex; align-items:center; justify-content:center;
   font-weight:800; flex:0 0 16px; margin-left:4px; border:1px solid rgba(5,102,89,0.12);
   position:absolute; right:4px; top:4px; font-size:10px;
+}
+
+/* Uploaded badge styling - blue border and subtle background */
+.badge.uploaded {
+  border: 2px solid #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.15);
+}
+
+.badge.uploaded .name {
+  color: #1e40af;
+  font-weight: 900;
 }
 
 /* Present state border */

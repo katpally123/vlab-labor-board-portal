@@ -428,6 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
     quarterLocks: { Q1: false, Q2: false, Q3: false },
     // Multi-site support
     currentSite: 'YDD2', // Active site being viewed
+    suppressAnalytics: false, // Flag to prevent analytics during internal operations
     sites: {
       YDD2: { 
         assignments: {},  // badgeId -> location mapping for this site
@@ -446,6 +447,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Multi-Site Management Functions
   const MULTISITE = {
+    // Ensure current site is synchronized with form
+    ensureCurrentSiteSync: function() {
+      const formSite = document.getElementById('site')?.value;
+      const headerSite = document.getElementById('headerSiteSelector')?.value;
+      
+      if (formSite && formSite !== STATE.currentSite) {
+        console.log(`[MULTISITE] Syncing currentSite from form: ${STATE.currentSite} -> ${formSite}`);
+        STATE.currentSite = formSite;
+      } else if (headerSite && headerSite !== STATE.currentSite) {
+        console.log(`[MULTISITE] Syncing currentSite from header: ${STATE.currentSite} -> ${headerSite}`);
+        STATE.currentSite = headerSite;
+      }
+      
+      return STATE.currentSite;
+    },
     // Switch to a different site view
     switchToSite: function(siteCode) {
       if (!STATE.sites[siteCode]) {
@@ -459,6 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update current site
       const oldSite = STATE.currentSite;
       STATE.currentSite = siteCode;
+      console.log(`[MULTISITE] Updated STATE.currentSite from ${oldSite} to ${siteCode}`);
       
       // Clear current tile displays
       this.clearAllTiles();
@@ -511,6 +528,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSiteAssignments: function(siteCode) {
       if (!STATE.sites[siteCode]) return;
       
+      // Suppress analytics during internal site loading
+      const oldSuppressFlag = STATE.suppressAnalytics;
+      STATE.suppressAnalytics = true;
+      
       const siteAssignments = STATE.sites[siteCode].assignments || {};
       
       // Reset all badges to unassigned first, but keep global assignment state
@@ -533,6 +554,9 @@ document.addEventListener('DOMContentLoaded', () => {
           badge.loc = 'unassigned';
         }
       });
+      
+      // Restore previous suppress flag
+      STATE.suppressAnalytics = oldSuppressFlag;
       
       console.log(`[MULTISITE] Loaded ${Object.keys(siteAssignments).length} assignments for ${siteCode}`);
     },
@@ -566,6 +590,51 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     },
     
+    // Sync current badge locations to multi-site assignments
+    syncCurrentAssignments: function() {
+      console.log('[MULTISITE] Syncing current badge locations to multi-site system...');
+      
+      // Clear all existing assignments
+      Object.keys(STATE.sites).forEach(siteCode => {
+        STATE.sites[siteCode].assignments = {};
+      });
+      
+      // Rebuild assignments from current badge locations
+      Object.values(STATE.badges).forEach(badge => {
+        if (badge.loc && badge.loc !== 'unassigned' && badge.loc !== 'assigned-elsewhere') {
+          // Assign to current site
+          const currentSite = STATE.currentSite;
+          STATE.sites[currentSite].assignments[badge.id] = badge.loc;
+          console.log(`[MULTISITE] Synced: ${badge.name} -> ${currentSite}/${badge.loc}`);
+        }
+      });
+      
+      console.log('[MULTISITE] Sync complete. STATE.sites:', STATE.sites);
+    },
+    
+    // Get which site a badge is currently assigned to
+    getBadgeAssignmentSite: function(badgeId) {
+      for (const [siteCode, siteData] of Object.entries(STATE.sites)) {
+        if (siteData.assignments && siteData.assignments[badgeId]) {
+          return siteCode;
+        }
+      }
+      return null; // Not assigned to any site
+    },
+    
+    // Get current assignment info for a badge
+    getBadgeAssignmentInfo: function(badgeId) {
+      for (const [siteCode, siteData] of Object.entries(STATE.sites)) {
+        if (siteData.assignments && siteData.assignments[badgeId]) {
+          return {
+            site: siteCode,
+            location: siteData.assignments[badgeId]
+          };
+        }
+      }
+      return null; // Not assigned anywhere
+    },
+    
     // Save current multi-site state to localStorage
     saveToStorage: function() {
       try {
@@ -588,7 +657,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Track assignment changes
     logAssignment: function(badgeId, fromLoc, toLoc, timestamp = new Date()) {
       const badge = STATE.badges[badgeId];
-      if (!badge) return;
+      if (!badge) {
+        console.warn('[Analytics] No badge found for logAssignment:', badgeId);
+        return;
+      }
+      
+      // Ensure current site is synchronized
+      MULTISITE.ensureCurrentSiteSync();
+      
+      // Get the site for this assignment - use current site for new assignments
+      let assignmentSite = STATE.currentSite;
+      if (toLoc === 'unassigned') {
+        // If moving to unassigned, record the site they're being removed from
+        assignmentSite = MULTISITE.getBadgeAssignmentSite(badgeId) || STATE.currentSite;
+      }
+      
+      console.log(`[Analytics] Logging assignment: badge=${badgeId}, from=${fromLoc}, to=${toLoc}, site=${assignmentSite}`);
+      
+      // Fallback if site is still undefined
+      if (!assignmentSite || assignmentSite === 'undefined') {
+        assignmentSite = 'Unknown';
+        console.warn('[Analytics] Site was undefined, using fallback:', assignmentSite);
+      }
       
       const logEntry = {
         id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -598,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
         employeeId: badge.eid,
         employeeName: badge.name,
         shiftCode: badge.scode,
-        site: badge.site,
+        site: assignmentSite,
   quarter: STATE.currentQuarter || 'Q1',
         fromLocation: fromLoc,
         toLocation: toLoc,
@@ -607,7 +697,23 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionId: this.getCurrentSessionId()
       };
       
-      STATE.analytics.history.push(logEntry);
+      // Check for recent duplicate entries (within last 5 seconds)
+      const recent = STATE.analytics.history.filter(entry => {
+        const entryTime = new Date(entry.timestamp).getTime();
+        const currentTime = timestamp.getTime();
+        return (currentTime - entryTime) < 5000 && // within 5 seconds
+               entry.badgeId === badgeId && 
+               entry.employeeId === badge.eid &&
+               entry.toLocation === toLoc &&
+               entry.site === assignmentSite;
+      });
+      
+      // Only add if not a recent duplicate
+      if (recent.length === 0) {
+        STATE.analytics.history.push(logEntry);
+      } else {
+        console.log('[Analytics] Skipping duplicate log entry for', badge.name, toLoc);
+      }
       this.updatePerformanceMetrics(badge.eid, logEntry);
       this.saveAnalyticsData();
       console.debug('[Analytics] Logged assignment:', logEntry);
@@ -2426,6 +2532,59 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Special parser for upload files that can handle tab-separated or comma-separated values
+  function parseUploadFile(file){
+    return new Promise((resolve, reject) => {
+      console.log('[DEBUG] Parsing upload file:', file.name);
+      
+      if (!file) {
+        reject(new Error('No file provided'));
+        return;
+      }
+
+      // First, read the file as text to detect delimiter
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        console.log('[DEBUG] File content preview:', content.substring(0, 200));
+        const firstLine = content.split('\n')[0];
+        
+        // Detect if it's tab-separated or comma-separated
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const delimiter = tabCount > commaCount ? '\t' : ',';
+        
+        console.log('[DEBUG] First line:', firstLine.substring(0, 100));
+        console.log('[DEBUG] Tab count:', tabCount, 'Comma count:', commaCount);
+        console.log('[DEBUG] Detected delimiter:', delimiter === '\t' ? 'TAB' : 'COMMA', 'in file:', file.name);
+
+        // Parse with detected delimiter
+        Papa.parse(file, {
+          header: true,
+          delimiter: delimiter,
+          skipEmptyLines: true,
+          complete: (res) => {
+            console.log('[DEBUG] Upload file parsing complete for', file.name, '- rows:', res.data?.length);
+            if (res.errors && res.errors.length > 0) {
+              console.warn('[DEBUG] Upload file parsing warnings:', res.errors);
+            }
+            resolve(res.data || []);
+          },
+          error: (err) => {
+            console.error('[DEBUG] Upload file parsing error for', file.name, ':', err);
+            reject(err);
+          }
+        });
+      };
+      
+      reader.onerror = function() {
+        reject(new Error('Failed to read file'));
+      };
+      
+      reader.readAsText(file);
+    });
+  }
+
   // small helper used for diagnostics: did parse rows exist but active filter remove them all?
   function filteredPreviewNeeded(roster, activeRows){
     return Array.isArray(roster) && roster.length > 0 && Array.isArray(activeRows) && activeRows.length === 0;
@@ -2511,7 +2670,8 @@ document.addEventListener('DOMContentLoaded', () => {
         STATE.badges[badgeId].loc = 'unassigned';
         console.log(`[MULTISITE] Badge ${badgeId} moved to global unassigned pool`);
       } else {
-        // Assign to current site - IMPORTANT: Remove from ALL other sites first
+        // Ensure current site is properly synchronized before assignment
+        MULTISITE.ensureCurrentSiteSync();
         const currentSite = STATE.currentSite;
         
         // Check if badge was assigned elsewhere for logging
@@ -2543,11 +2703,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }catch(_){ }
       
       // Log the assignment (override when applicable)
-      const logLocation = newLocation === 'unassigned' ? newLocation : `${STATE.currentSite}/${newLocation}`;
-      const logOldLocation = oldLocation === 'unassigned' ? oldLocation : `${STATE.currentSite}/${oldLocation}`;
-      
-      if (isOverride) addOverrideLog(badgeId, logOldLocation, logLocation);
-      else ANALYTICS.logAssignment(badgeId, logOldLocation, logLocation);
+      // Only log actual user-initiated assignments, not internal state changes
+      if (!STATE.suppressAnalytics && newLocation !== 'assigned-elsewhere' && oldLocation !== 'assigned-elsewhere') {
+        const logLocation = newLocation === 'unassigned' ? newLocation : `${STATE.currentSite}/${newLocation}`;
+        const logOldLocation = oldLocation === 'unassigned' ? oldLocation : `${STATE.currentSite}/${oldLocation}`;
+        
+        if (isOverride) addOverrideLog(badgeId, logOldLocation, logLocation);
+        else ANALYTICS.logAssignment(badgeId, logOldLocation, logLocation);
+      }
       
       // Save multi-site state to localStorage
       MULTISITE.saveToStorage();
@@ -2585,7 +2748,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Card-style badge: compact layout
     const wrap = document.createElement('div');
     wrap.id = p.id;
-    wrap.className = `badge ${(p.scode||'').trim()}`.trim();
+    let badgeClasses = `badge ${(p.scode||'').trim()}`;
+    if (p.isUploaded) badgeClasses += ' uploaded';
+    wrap.className = badgeClasses.trim();
     wrap.setAttribute('draggable','true');
     if (p.eid) wrap.setAttribute('data-id', String(p.eid));
     if (p.scode) wrap.setAttribute('data-shift', String(p.scode));
@@ -2639,6 +2804,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     wrap.appendChild(info);
+
+    // upload indicator (for uploaded associates)
+    if (p.isUploaded) {
+      const uploadIndicator = document.createElement('div');
+      uploadIndicator.className = 'upload-indicator';
+      uploadIndicator.textContent = '📤';
+      uploadIndicator.style.cssText = `
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 12px;
+        background: #3b82f6;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        z-index: 10;
+      `;
+      uploadIndicator.title = 'Uploaded associate';
+      wrap.appendChild(uploadIndicator);
+    }
 
     // presence tick (right)
     const tick = document.createElement('div'); tick.className = 'tick'; tick.textContent = '✓';
@@ -2811,6 +3001,21 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize site switching after DOM is ready
   setupSiteSwitching();
+  
+  // Ensure header site selector is synchronized with form on page load
+  const initializeHeaderSiteSelector = function() {
+    const formSite = document.getElementById('site')?.value;
+    const headerSite = document.getElementById('headerSiteSelector');
+    
+    if (formSite && headerSite && headerSite.value !== formSite) {
+      headerSite.value = formSite;
+      STATE.currentSite = formSite;
+      console.log('[MULTISITE] Initialized header selector to match form:', formSite);
+    }
+  };
+  
+  // Initialize on DOM ready
+  setTimeout(initializeHeaderSiteSelector, 100);
 
   // submit
   form.addEventListener('submit', (e) => {
@@ -2830,6 +3035,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const swapFile = form.swap.files[0] || null;
     const vetFile = form.vetvto.files[0] || null;
     const lsFile = form.laborshare.files[0] || null;
+    const missingFile = form.missing.files[0] || null;
+    
+    console.log('[DEBUG] Upload file:', missingFile ? `${missingFile.name} (${missingFile.size} bytes)` : 'None selected');
 
     // Check if Papa Parse is available
     if (typeof Papa === 'undefined') {
@@ -2839,16 +3047,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     console.log('[DEBUG] Starting CSV parsing...');
+    console.log('[DEBUG] Files to parse:', {
+      roster: rosterFile?.name,
+      swap: swapFile?.name,
+      vet: vetFile?.name,
+      labor: lsFile?.name,
+      upload: missingFile?.name
+    });
+    
     Promise.all([
       parseCsv(rosterFile).catch(err => { console.error('[DEBUG] Roster parsing error:', err); return []; }),
       swapFile ? parseCsv(swapFile).catch(err => { console.error('[DEBUG] Swap parsing error:', err); return []; }) : Promise.resolve([]),
       vetFile ? parseCsv(vetFile).catch(err => { console.error('[DEBUG] VET parsing error:', err); return []; }) : Promise.resolve([]),
       lsFile ? parseCsv(lsFile).catch(err => { console.error('[DEBUG] Labor share parsing error:', err); return []; }) : Promise.resolve([]),
-    ]).then(([roster, swaps, vetvto, labshare]) => {
+      missingFile ? parseUploadFile(missingFile).catch(err => { console.error('[DEBUG] Upload file parsing error:', err); return []; }) : Promise.resolve([]),
+    ]).then(([roster, swaps, vetvto, labshare, missing]) => {
       console.debug('[build] rosterFile=', rosterFile && rosterFile.name, 'size=', rosterFile && rosterFile.size);
       console.debug('[build] parsed roster rows=', Array.isArray(roster) ? roster.length : typeof roster, roster && roster[0]);
+      console.debug('[DEBUG] Upload file parsed:', Array.isArray(missing) ? missing.length : typeof missing, missing && missing[0]);
   const siteSel = form.site.value;
   const quarterSel = (quarterSelect && quarterSelect.value) || 'Q1';
+      
+      // Initialize current site early for proper analytics tracking
+      STATE.currentSite = siteSel;
+      console.log('[DEBUG] Setting current site to:', siteSel);
+      
       const dateStr = form.date.value;
       const shiftSel = form.querySelector('input[name="shift"]:checked')?.value || 'day';
       const d = parseInputDate(dateStr); const dow = d?.getDay() ?? 0;
@@ -2863,12 +3086,54 @@ document.addEventListener('DOMContentLoaded', () => {
       if (allowed.size){ codesBar.classList.remove('hidden'); codesBar.textContent = `Codes active for ${dayNames[dow]} (${elShift.textContent}): ${[...allowed].sort().join(', ')}`; }
       else { codesBar.classList.add('hidden'); codesBar.textContent = ''; }
 
-      const activeRows = Array.isArray(roster) ? roster.filter(r => String(r['Employee Status'] ?? r.Status ?? '').toLowerCase() === 'active') : [];
+      // Process uploaded associates and merge with roster
+      let combinedRoster = Array.isArray(roster) ? [...roster] : [];
+      const uploadedEmployeeIds = new Set(); // Track which employees came from upload
+      
+      if (Array.isArray(missing) && missing.length > 0) {
+        console.log(`[DEBUG] Processing ${missing.length} uploaded associates`);
+        
+        // Add uploaded associates to the roster with normalized headers
+        missing.forEach(missingPerson => {
+          // Normalize the missing person data to match roster format
+          const normalizedPerson = {
+            'Employee ID': missingPerson['Employee ID'] || missingPerson['User ID'] || '',
+            'Employee Name': missingPerson['Employee Name'] || '',
+            'Employee Status': missingPerson['Employee Status'] || 'Active', // Default to Active
+            'Shift Pattern': missingPerson['Shift Pattern'] || '',
+            'Department ID': missingPerson['Department ID'] || '',
+            'Management Area ID': missingPerson['Management Area ID'] || '',
+            'Badge Barcode ID': missingPerson['Badge Barcode ID'] || '',
+            'Employment Start Date': missingPerson['Employment Start Date'] || '',
+            'Employment Type': missingPerson['Employment Type'] || '',
+            'Manager Name': missingPerson['Manager Name'] || '',
+            '_isUploaded': true // Mark as uploaded
+          };
+          
+          // Only add if not already in roster (check by Employee ID)
+          const existingEmployee = combinedRoster.find(existing => 
+            (existing['Employee ID'] || existing['ID'] || existing['EID']) === normalizedPerson['Employee ID']
+          );
+          
+          if (!existingEmployee && normalizedPerson['Employee ID']) {
+            combinedRoster.push(normalizedPerson);
+            uploadedEmployeeIds.add(normalizedPerson['Employee ID']);
+            console.log(`[DEBUG] Added uploaded associate: ${normalizedPerson['Employee Name']} (${normalizedPerson['Employee ID']})`);
+          } else if (existingEmployee) {
+            console.log(`[DEBUG] Skipped duplicate: ${normalizedPerson['Employee Name']} (${normalizedPerson['Employee ID']})`);
+          }
+        });
+        
+        console.log(`[DEBUG] Combined roster now has ${combinedRoster.length} total employees`);
+        console.log(`[DEBUG] Uploaded employee IDs:`, Array.from(uploadedEmployeeIds));
+      }
 
-      if (Array.isArray(roster) && filteredPreviewNeeded(roster, activeRows)){
+      const activeRows = combinedRoster.filter(r => String(r['Employee Status'] ?? r.Status ?? '').toLowerCase() === 'active');
+
+      if (combinedRoster.length > 0 && filteredPreviewNeeded(combinedRoster, activeRows)){
         // if parsing succeeded but no "active" rows found, give immediate guidance
-        const keys = roster[0] ? Object.keys(roster[0]) : [];
-        output.textContent = `Parsed ${roster.length} rows. No active rows matched filters. Detected headers: ${keys.join(', ')}.`;
+        const keys = combinedRoster[0] ? Object.keys(combinedRoster[0]) : [];
+        output.textContent = `Parsed ${combinedRoster.length} rows (${missing.length || 0} added from upload file). No active rows matched filters. Detected headers: ${keys.join(', ')}.`;
         console.warn('[build] no active rows after filtering; headers=', keys);
       }
   const filtered = activeRows.filter(r => {
@@ -2911,7 +3176,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const handle = String(r['Handle'] ?? r['Employee Handle'] ?? r['Login'] ?? '').trim();
         const photo = String(r['Photo'] ?? r['Photo URL'] ?? r['Image'] ?? '').trim();
         const id   = `b_${eid || idx}_${Math.random().toString(36).slice(2,8)}`;
-        STATE.badges[id] = { id, name, eid, scode: sc, site: siteSel, present:false, loc:'unassigned', barcode, handle, photo };
+        const isUploaded = r['_isUploaded'] === true; // Check if this came from upload
+        STATE.badges[id] = { id, name, eid, scode: sc, site: siteSel, present:false, loc:'unassigned', barcode, handle, photo, isUploaded };
       });
 
       if (Object.keys(STATE.badges).length === 0){
@@ -2926,13 +3192,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Start analytics session
       ANALYTICS.endSession(); // End any existing session
+      const missingCount = missing.length || 0;
+      const sessionNotes = missingCount > 0 
+        ? `Roster: ${rosterFile.name} + ${missingCount} uploaded associates, Badges: ${Object.keys(STATE.badges).length}`
+        : `Roster: ${rosterFile.name}, Badges: ${Object.keys(STATE.badges).length}`;
+        
       ANALYTICS.startSession({
         date: dateStr,
         shift: shiftSel,
         site: siteSel,
         plannedHC: plannedHC,
-        notes: `Roster: ${rosterFile.name}, Badges: ${Object.keys(STATE.badges).length}`
+        notes: sessionNotes
       });
+      
+      if (missingCount > 0) {
+        console.log(`[SUCCESS] Loaded ${Object.keys(STATE.badges).length} badges including ${missingCount} from upload file`);
+      }
 
       // persist compact snapshot so user can reload without re-uploading CSV
       try{
@@ -3232,54 +3507,91 @@ document.addEventListener('DOMContentLoaded', () => {
       analyticsSearchResults.innerHTML = '';
       return;
     }
-    ensureEmployeeIndex();
-    const employees = STATE.analytics.employees || {};
+    
     const lower = q.toLowerCase();
-    // Collect matches by login or name
-    const entries = Object.entries(employees).filter(([login, data]) => {
-      const name = (data && (data.name || data.employeeName)) || '';
-      return String(login).toLowerCase().includes(lower) || String(name).toLowerCase().includes(lower);
-    });
-
-    // Flatten all history rows
     let rows = [];
-    entries.forEach(([login, data]) => {
-      const hist = (data && Array.isArray(data.history)) ? data.history : [];
-      hist.forEach(r => {
-        rows.push({
-          date: normalizeDateToYMD(r.date || r.Date || r.timestamp),
-          shiftType: r.shiftType || r.ShiftType || r.shift_type || '',
-          quarter: r.quarter || r.Quarter || '',
-          ls: (r.ls === true || String(r.ls).toLowerCase() === 'yes') ? 'Yes' : 'No',
-          assigned: (r.assigned === true || String(r.assigned).toLowerCase() === 'yes') ? 'Yes' : (r.action ? ((r.action === 'assign' || r.action === 'reassign') ? 'Yes' : 'No') : 'No'),
-          process: r.process || r.Process || r.toLocation || '',
-          employeeId: r.employeeId || r.EmployeeID || r.eid || login,
-          employeeName: r.employeeName || r.EmployeeName || data.name || ''
+    
+    // Ensure multi-site assignments are up to date
+    MULTISITE.syncCurrentAssignments();
+    
+    // Search through current badges for matching employees
+    console.log('[Analytics Search] STATE.sites:', STATE.sites);
+    console.log('[Analytics Search] Current site:', STATE.currentSite);
+    
+    Object.values(STATE.badges).forEach(badge => {
+      const name = badge.name || '';
+      const eid = badge.eid || '';
+      
+      if (String(name).toLowerCase().includes(lower) || String(eid).toLowerCase().includes(lower)) {
+        console.log('[Analytics Search] Checking badge:', badge.id, name, 'loc:', badge.loc);
+        
+        // Find current assignment info
+        let currentSite = 'Unassigned';
+        let currentProcess = 'UNASSIGNED';
+        let isAssigned = 'No';
+        
+        // Check each site for current assignment
+        Object.entries(STATE.sites).forEach(([siteCode, siteData]) => {
+          console.log(`[Analytics Search] Checking site ${siteCode}:`, siteData.assignments);
+          if (siteData.assignments && siteData.assignments[badge.id]) {
+            currentSite = siteCode;
+            currentProcess = siteData.assignments[badge.id].toUpperCase();
+            isAssigned = 'Yes';
+            console.log(`[Analytics Search] Found assignment: ${badge.name} -> ${siteCode}/${currentProcess}`);
+          }
         });
-      });
+        
+        // Also check badge.loc as fallback
+        if (currentSite === 'Unassigned' && badge.loc && badge.loc !== 'unassigned' && badge.loc !== 'assigned-elsewhere') {
+          currentSite = STATE.currentSite; // Use current site as fallback
+          currentProcess = badge.loc.toUpperCase();
+          isAssigned = 'Yes';
+          console.log(`[Analytics Search] Using badge.loc fallback: ${badge.name} -> ${currentSite}/${currentProcess}`);
+        }
+        
+        console.log(`[Analytics Search] Final result: ${badge.name} -> Site: ${currentSite}, Process: ${currentProcess}, Assigned: ${isAssigned}`);
+        
+        // Get the actual date from the form
+        const formDate = document.getElementById('date')?.value || new Date().toISOString().split('T')[0];
+        
+        // Get the actual shift type from the form
+        const formShift = document.querySelector('input[name="shift"]:checked')?.value || 'day';
+        const shiftType = formShift.charAt(0).toUpperCase() + formShift.slice(1); // Capitalize
+        
+        rows.push({
+          date: formDate, // Use form date instead of current date
+          shiftType: shiftType, // Use form shift type
+          quarter: STATE.currentQuarter || 'Q1',
+          site: currentSite,
+          ls: 'No', // Default
+          assigned: isAssigned,
+          process: currentProcess,
+          employeeId: eid,
+          employeeName: name
+        });
+      }
     });
 
     if (rows.length === 0){
-      analyticsSearchResults.innerHTML = '<div class="muted">No records found.</div>';
+      analyticsSearchResults.innerHTML = '<div class="muted">No matching employees found.</div>';
       analyticsSearchResults.classList.remove('hidden');
       return;
     }
 
-    // Sort by Date asc then Quarter order Q1->Q2->Q3->Q4
+    // Sort by name
     rows.sort((a,b) => {
-      const da = a.date || ''; const db = b.date || '';
-      if (da !== db) return da < db ? -1 : 1;
-      return parseQuarterValue(a.quarter) - parseQuarterValue(b.quarter);
+      return (a.employeeName || '').localeCompare(b.employeeName || '');
     });
 
   const total = rows.length;
-  // Render header + table (no LS summary per request)
-  const header = `<div class="results-header"><span>Matches: <strong>${total}</strong></span></div>`;
+  // Render header + table
+  const header = `<div class="results-header"><span>Current Status - Matches: <strong>${total}</strong></span></div>`;
     const tableHead = `
       <thead><tr>
         <th>Date</th>
         <th>Shift Type</th>
         <th>Quarter</th>
+        <th>Site</th>
         <th>LS</th>
         <th>Assigned</th>
         <th>Process</th>
@@ -3291,6 +3603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${r.date || ''}</td>
         <td>${r.shiftType || ''}</td>
         <td>${r.quarter || ''}</td>
+        <td><span class="site-badge site-${(r.site||'').toLowerCase()}">${r.site || 'N/A'}</span></td>
         <td>${r.ls}</td>
         <td>${r.assigned}</td>
         <td>${(r.process||'').toString().toUpperCase()}</td>
@@ -3491,18 +3804,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const assignmentPatterns = document.getElementById('assignmentPatterns');
     const assignmentRecommendations = document.getElementById('assignmentRecommendations');
 
+    // Current Assignments Across All Sites
+    let currentAssignmentsHTML = '<h4>Current Assignments by Site</h4>';
+    Object.entries(STATE.sites).forEach(([siteCode, siteData]) => {
+      const assignments = siteData.assignments || {};
+      const assignmentCount = Object.keys(assignments).length;
+      
+      currentAssignmentsHTML += `
+        <div class="site-assignment-section">
+          <h5><span class="site-badge site-${siteCode.toLowerCase()}">${siteCode}</span> (${assignmentCount} assigned)</h5>
+      `;
+      
+      if (assignmentCount > 0) {
+        const assignmentsByProcess = {};
+        Object.entries(assignments).forEach(([badgeId, location]) => {
+          if (!assignmentsByProcess[location]) assignmentsByProcess[location] = [];
+          const badge = STATE.badges[badgeId];
+          if (badge) {
+            assignmentsByProcess[location].push(badge);
+          }
+        });
+        
+        Object.entries(assignmentsByProcess).forEach(([process, badges]) => {
+          currentAssignmentsHTML += `
+            <div class="process-assignment">
+              <strong>${process.toUpperCase()}</strong> (${badges.length}):
+              ${badges.map(b => `<span class="employee-name">${b.name || b.eid}</span>`).join(', ')}
+            </div>
+          `;
+        });
+      } else {
+        currentAssignmentsHTML += '<p class="no-assignments">No current assignments</p>';
+      }
+      
+      currentAssignmentsHTML += '</div>';
+    });
+
     // Recent Assignment History (Last 20)
     const recentHistory = STATE.analytics.history.slice(-20).reverse();
-    assignmentHistory.innerHTML = recentHistory.map(entry => `
+    const historyHTML = recentHistory.map(entry => `
       <div class="history-item">
         <div class="history-timestamp">${new Date(entry.timestamp).toLocaleString()}</div>
         <div class="history-action">
+          <span class="site-badge site-${(entry.site||'').toLowerCase()}">${entry.site || 'N/A'}</span>
           ${entry.employeeName} ${entry.action === 'assign' ? 'assigned to' : 
             entry.action === 'unassign' ? 'unassigned from' : 'moved to'} 
           ${entry.toLocation.toUpperCase()}
         </div>
       </div>
     `).join('') || '<p>No assignment history available</p>';
+
+    assignmentHistory.innerHTML = currentAssignmentsHTML + '<h4>Recent Assignment History</h4>' + historyHTML;
 
     // Assignment Patterns
     const patternStats = analyzeAssignmentPatterns();
@@ -4083,8 +4435,15 @@ document.addEventListener('DOMContentLoaded', () => {
       patterns: {}
     };
     ANALYTICS.saveAnalyticsData();
+    
+    // Also clear localStorage to start fresh
+    try {
+      localStorage.removeItem('vlab:analytics');
+      localStorage.removeItem('vlab:lastRoster');
+    } catch(e) { /* ignore */ }
+    
     closeAnalytics();
-    alert('Analytics data cleared successfully.');
+    alert('Analytics data cleared successfully. Please reload your roster for fresh tracking.');
   });
 
   // Close modal when clicking outside
