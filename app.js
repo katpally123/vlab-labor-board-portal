@@ -414,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tileOverlayEl) closeTileOverlay(); });
 
-  // In-memory badge store with analytics tracking
+  // In-memory badge store with analytics tracking and multi-site support
   const STATE = { 
     badges: {},
     analytics: {
@@ -425,7 +425,162 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     currentQuarter: 'Q1',
     quarterAssignments: { Q1: {}, Q2: {}, Q3: {} },
-    quarterLocks: { Q1: false, Q2: false, Q3: false }
+    quarterLocks: { Q1: false, Q2: false, Q3: false },
+    // Multi-site support
+    currentSite: 'YDD2', // Active site being viewed
+    sites: {
+      YDD2: { 
+        assignments: {},  // badgeId -> location mapping for this site
+        processes: ['cb','ibws','lineloaders','trickle','dm','idrt','pb','e2s','dockws','e2sws','tpb','tws','sap','ao5s','pa','ps','laborshare']
+      },
+      YDD4: { 
+        assignments: {},  // badgeId -> location mapping for this site
+        processes: ['cb','ibws','lineloaders','trickle','dm','idrt','pb','e2s','dockws','e2sws','tpb','tws','sap','ao5s','pa','ps','laborshare']
+      },
+      YHM2: { 
+        assignments: {},  // badgeId -> location mapping for this site
+        processes: ['cb','ibws','lineloaders','trickle','dm','idrt','pb','e2s','dockws','e2sws','tpb','tws','sap','ao5s','pa','ps','laborshare']
+      }
+    }
+  };
+
+  // Multi-Site Management Functions
+  const MULTISITE = {
+    // Switch to a different site view
+    switchToSite: function(siteCode) {
+      if (!STATE.sites[siteCode]) {
+        console.warn('[MULTISITE] Unknown site:', siteCode);
+        return false;
+      }
+      
+      // Save current site assignments before switching
+      this.saveCurrentSiteAssignments();
+      
+      // Update current site
+      const oldSite = STATE.currentSite;
+      STATE.currentSite = siteCode;
+      
+      // Clear current tile displays
+      this.clearAllTiles();
+      
+      // Load assignments for the new site
+      this.loadSiteAssignments(siteCode);
+      
+      // Update header display
+      const headerSelector = document.getElementById('headerSiteSelector');
+      if (headerSelector) headerSelector.value = siteCode;
+      
+      // Update form site selector to match
+      const formSelector = document.getElementById('site');
+      if (formSelector) formSelector.value = siteCode;
+      
+      // Update site display
+      const elSite = document.getElementById('displaySite');
+      if (elSite) elSite.textContent = siteCode;
+      
+      // Re-render all badges (unassigned + site assignments)
+      renderAllBadges();
+      
+      console.log(`[MULTISITE] Switched from ${oldSite} to ${siteCode}`);
+      
+      // Log the site switch
+      ANALYTICS.logAssignment(null, `Site Switch: ${oldSite}`, `Site Switch: ${siteCode}`);
+      
+      return true;
+    },
+    
+    // Save current assignments to the current site
+    saveCurrentSiteAssignments: function() {
+      const currentSite = STATE.currentSite;
+      if (!STATE.sites[currentSite]) return;
+      
+      // Clear existing assignments for this site
+      STATE.sites[currentSite].assignments = {};
+      
+      // Save all non-unassigned badge locations to current site
+      Object.values(STATE.badges).forEach(badge => {
+        if (badge.loc !== 'unassigned') {
+          STATE.sites[currentSite].assignments[badge.id] = badge.loc;
+        }
+      });
+      
+      console.log(`[MULTISITE] Saved ${Object.keys(STATE.sites[currentSite].assignments).length} assignments for ${currentSite}`);
+    },
+    
+    // Load assignments for a specific site
+    loadSiteAssignments: function(siteCode) {
+      if (!STATE.sites[siteCode]) return;
+      
+      const siteAssignments = STATE.sites[siteCode].assignments || {};
+      
+      // Reset all badges to unassigned first, but keep global assignment state
+      Object.values(STATE.badges).forEach(badge => {
+        // Check if this badge is assigned in ANY site
+        const isAssignedAnywhere = Object.values(STATE.sites).some(site => 
+          site.assignments && site.assignments[badge.id]
+        );
+        
+        if (isAssignedAnywhere) {
+          // If assigned in current site, show the assignment
+          if (siteAssignments[badge.id]) {
+            badge.loc = siteAssignments[badge.id];
+          } else {
+            // Assigned in another site, mark as assigned but not visible
+            badge.loc = 'assigned-elsewhere';
+          }
+        } else {
+          // Truly unassigned
+          badge.loc = 'unassigned';
+        }
+      });
+      
+      console.log(`[MULTISITE] Loaded ${Object.keys(siteAssignments).length} assignments for ${siteCode}`);
+    },
+    
+    // Clear all tile displays
+    clearAllTiles: function() {
+      Object.values(tileBadgeLayers).forEach(layer => {
+        if (layer) layer.innerHTML = '';
+      });
+    },
+    
+    // Move badge between sites
+    moveBadgeToSite: function(badgeId, targetSite, targetLocation) {
+      const badge = STATE.badges[badgeId];
+      if (!badge || !STATE.sites[targetSite]) return false;
+      
+      // Remove from current site assignments
+      Object.keys(STATE.sites).forEach(siteCode => {
+        delete STATE.sites[siteCode].assignments[badgeId];
+      });
+      
+      // Add to target site
+      STATE.sites[targetSite].assignments[badgeId] = targetLocation;
+      
+      // If target site is current site, update badge location
+      if (targetSite === STATE.currentSite) {
+        badge.loc = targetLocation;
+      }
+      
+      console.log(`[MULTISITE] Moved badge ${badgeId} to ${targetSite}/${targetLocation}`);
+      return true;
+    },
+    
+    // Save current multi-site state to localStorage
+    saveToStorage: function() {
+      try {
+        const raw = localStorage.getItem('vlab:lastRoster');
+        if (raw) {
+          const snap = JSON.parse(raw);
+          snap.sites = STATE.sites;
+          snap.currentSite = STATE.currentSite;
+          localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
+          console.debug('[MULTISITE] Saved multi-site state to localStorage');
+        }
+      } catch(e) {
+        console.warn('[MULTISITE] Failed to save to localStorage:', e);
+      }
+    }
   };
 
   // Analytics and Data Collection System
@@ -2228,6 +2383,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if ([1211010,1211020,1299010,1299020].includes(d)) return 'YHM2';
       if ([1211030,1211040,1299030,1299040].includes(d)) return 'YHM2';
       if ([1211070,1299070].includes(d) && a === 22) return 'YDD2';
+      if ([1211080,1299080].includes(d) && a === 24) return 'YDD4';
     }
     return 'Other';
   }
@@ -2283,7 +2439,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function setCounts(){
     const counts = {};
     TILES.forEach(([id,key]) => counts[key] = 0);
-    Object.values(STATE.badges).forEach(b => { counts[b.loc] = (counts[b.loc] || 0) + 1; });
+    
+    // Count badges, but exclude 'assigned-elsewhere' from all counts
+    Object.values(STATE.badges).forEach(b => { 
+      if (b.loc !== 'assigned-elsewhere') {
+        counts[b.loc] = (counts[b.loc] || 0) + 1; 
+      }
+    });
+    
     TILES.forEach(([id,key]) => {
       const el = document.getElementById(id);
       if (el){
@@ -2291,7 +2454,17 @@ document.addEventListener('DOMContentLoaded', () => {
         else el.textContent = String(counts[key] || 0);
       }
     });
-    unassignedCountEl.textContent = String(counts['unassigned'] || 0);
+    
+    // Count truly unassigned badges (not assigned anywhere)
+    const trulyUnassigned = Object.values(STATE.badges).filter(b => {
+      if (b.loc !== 'unassigned') return false;
+      // Check if assigned in any site
+      return !Object.values(STATE.sites).some(site => 
+        site.assignments && site.assignments[b.id]
+      );
+    }).length;
+    
+    unassignedCountEl.textContent = String(trulyUnassigned);
   }
 
   function makeDropTarget(container, key){
@@ -2329,7 +2502,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const oldLocation = STATE.badges[badgeId].loc;
       const newLocation = key || 'unassigned';
       
-      STATE.badges[badgeId].loc = newLocation;
+      // Multi-site assignment logic
+      if (newLocation === 'unassigned') {
+        // Remove from ALL site assignments (badge becomes globally unassigned)
+        Object.keys(STATE.sites).forEach(siteCode => {
+          delete STATE.sites[siteCode].assignments[badgeId];
+        });
+        STATE.badges[badgeId].loc = 'unassigned';
+        console.log(`[MULTISITE] Badge ${badgeId} moved to global unassigned pool`);
+      } else {
+        // Assign to current site - IMPORTANT: Remove from ALL other sites first
+        const currentSite = STATE.currentSite;
+        
+        // Check if badge was assigned elsewhere for logging
+        const previousSiteAssignment = Object.keys(STATE.sites).find(siteCode => 
+          siteCode !== currentSite && STATE.sites[siteCode].assignments[badgeId]
+        );
+        
+        // Remove from ALL sites first (ensures one assignment per associate)
+        Object.keys(STATE.sites).forEach(siteCode => {
+          delete STATE.sites[siteCode].assignments[badgeId];
+        });
+        
+        // Add to current site
+        STATE.sites[currentSite].assignments[badgeId] = newLocation;
+        STATE.badges[badgeId].loc = newLocation;
+        
+        // Enhanced logging for cross-site moves
+        if (previousSiteAssignment) {
+          console.log(`[MULTISITE] Cross-site move: badge ${badgeId} moved from ${previousSiteAssignment} to ${currentSite}/${newLocation}`);
+        } else {
+          console.log(`[MULTISITE] New assignment: badge ${badgeId} assigned to ${currentSite}/${newLocation}`);
+        }
+      }
+      
       // Save change into current quarter snapshot
       try{
         STATE.quarterAssignments[STATE.currentQuarter] = STATE.quarterAssignments[STATE.currentQuarter] || {};
@@ -2337,8 +2543,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }catch(_){ }
       
       // Log the assignment (override when applicable)
-      if (isOverride) addOverrideLog(badgeId, oldLocation, newLocation);
-      else ANALYTICS.logAssignment(badgeId, oldLocation, newLocation);
+      const logLocation = newLocation === 'unassigned' ? newLocation : `${STATE.currentSite}/${newLocation}`;
+      const logOldLocation = oldLocation === 'unassigned' ? oldLocation : `${STATE.currentSite}/${oldLocation}`;
+      
+      if (isOverride) addOverrideLog(badgeId, logOldLocation, logLocation);
+      else ANALYTICS.logAssignment(badgeId, logOldLocation, logLocation);
+      
+      // Save multi-site state to localStorage
+      MULTISITE.saveToStorage();
       
       // move DOM node into container (append will move, not clone)
       if ((key || 'unassigned') === 'unassigned') unassignedStack.appendChild(node);
@@ -2512,14 +2724,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (unassignedStack) unassignedStack.innerHTML = '';
     Object.values(tileBadgeLayers).forEach(layer => { if (layer) layer.innerHTML = ''; });
 
+    // Check if badge is assigned in ANY site (not just current site)
+    const isAssignedAnywhere = (badgeId) => {
+      const assigned = Object.values(STATE.sites).some(site => 
+        site.assignments && site.assignments[badgeId]
+      );
+      return assigned;
+    };
+
     // Render unassigned as a compact list in the left panel (preview), and full list in overlay when open.
     const overlayOpen = !!document.getElementById('unassignedOverlay');
-    const unassigned = Object.values(STATE.badges).filter(b => b.loc === 'unassigned');
+    const unassigned = Object.values(STATE.badges).filter(b => 
+      b.loc === 'unassigned' && !isAssignedAnywhere(b.id)
+    );
     const previewCount = overlayOpen ? Infinity : 6;
     let rendered = 0;
 
     Object.values(STATE.badges).forEach(b => {
-      if (b.loc === 'unassigned'){
+      // Only show as unassigned if not assigned anywhere
+      if (b.loc === 'unassigned' && !isAssignedAnywhere(b.id)){
         if (rendered < previewCount){
           const item = document.createElement('div');
           item.className = 'unassigned-item';
@@ -2531,11 +2754,13 @@ document.addEventListener('DOMContentLoaded', () => {
           rendered++;
         }
         // otherwise skip rendering in preview mode; overlay will render full list when open
-      } else {
+      } else if (b.loc !== 'assigned-elsewhere') {
+        // Only render if assigned to current site (not assigned elsewhere)
         const node = renderBadge(b);
         if (b.present){ node.classList.add('present'); const t = document.createElement('div'); t.className='tick'; t.textContent='✓'; node.appendChild(t); }
         tileBadgeLayers[b.loc]?.appendChild(node);
       }
+      // Skip rendering badges that are assigned-elsewhere
     });
 
     // If there are more unassigned than previewCount and overlay is closed, show a "Show all" control
@@ -2559,6 +2784,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!d){ elType.textContent = '-'; return; }
     elType.textContent = shiftTypeMap[shift][d.getDay()];
   });
+
+  // Multi-site switching functionality - both form and header selectors
+  const setupSiteSwitching = function() {
+    const formSiteSelect = document.getElementById('site');
+    const headerSiteSelect = document.getElementById('headerSiteSelector');
+    
+    const handleSiteSwitch = (newSite) => {
+      // Only proceed if we have existing badges (board is already loaded)
+      if (Object.keys(STATE.badges).length === 0) return;
+      
+      console.log('[MULTISITE] Switching to site:', newSite);
+      MULTISITE.switchToSite(newSite);
+    };
+    
+    // Form site selector handler
+    formSiteSelect?.addEventListener('change', (e) => {
+      handleSiteSwitch(e.target.value);
+    });
+    
+    // Header site selector handler  
+    headerSiteSelect?.addEventListener('change', (e) => {
+      handleSiteSwitch(e.target.value);
+    });
+  };
+  
+  // Initialize site switching after DOM is ready
+  setupSiteSwitching();
 
   // submit
   form.addEventListener('submit', (e) => {
@@ -2623,6 +2875,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const site = classifySite(r);
         if (siteSel === 'YHM2' && site !== 'YHM2') return false;
         if (siteSel === 'YDD2' && site !== 'YDD2') return false;
+        if (siteSel === 'YDD4' && site !== 'YDD4') return false;
         const sc = shiftCodeOf(r['Shift Pattern'] ?? r['ShiftCode'] ?? r['Shift Code'] ?? r['Shift'] ?? r['Pattern']);
         if (!allowed.has(sc)) return false;
         if (shiftSel === 'day' && !DAY_SET.has(sc)) return false;
@@ -2683,9 +2936,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // persist compact snapshot so user can reload without re-uploading CSV
       try{
-  const snap = { badges: STATE.badges, meta: { date: dateStr, shift: shiftSel, site: siteSel, plannedHC, quarter: STATE.currentQuarter } };
+        // Initialize current site to the selected site from form
+        STATE.currentSite = siteSel;
+        
+        const snap = { 
+          badges: STATE.badges, 
+          sites: STATE.sites,
+          currentSite: STATE.currentSite,
+          meta: { date: dateStr, shift: shiftSel, site: siteSel, plannedHC, quarter: STATE.currentQuarter } 
+        };
         localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
-        console.debug('[save] saved roster snapshot to localStorage (vlab:lastRoster)');
+        console.debug('[save] saved roster snapshot with multi-site data to localStorage (vlab:lastRoster)');
       }catch(_){ /* ignore storage failures */ }
     }).catch(err => { 
       console.error('[DEBUG] Form submission error:', err); 
@@ -2703,14 +2964,36 @@ document.addEventListener('DOMContentLoaded', () => {
       const snap = JSON.parse(raw);
       if (!snap || !snap.badges){ alert('Saved roster is invalid.'); return; }
       STATE.badges = snap.badges;
+      
+      // Restore multi-site data if available
+      if (snap.sites) {
+        STATE.sites = snap.sites;
+      }
+      if (snap.currentSite) {
+        STATE.currentSite = snap.currentSite;
+      }
+      
       // apply meta back to form/UI if available
       if (snap.meta){
         if (snap.meta.date) document.getElementById('date').value = snap.meta.date;
         if (snap.meta.shift) { const r = document.querySelector(`input[name="shift"][value="${snap.meta.shift}"]`); if (r) r.checked = true; }
-        if (snap.meta.site) document.getElementById('site').value = snap.meta.site;
+        if (snap.meta.site) {
+          document.getElementById('site').value = snap.meta.site;
+          // Update header site selector
+          const headerSelector = document.getElementById('headerSiteSelector');
+          if (headerSelector) headerSelector.value = snap.meta.site;
+          // Update current site
+          STATE.currentSite = snap.meta.site;
+        }
         if (snap.meta.plannedHC) document.getElementById('plannedVolumeStub').value = snap.meta.plannedHC;
         if (snap.meta.quarter && quarterSelect){ quarterSelect.value = snap.meta.quarter; STATE.currentQuarter = snap.meta.quarter; }
       }
+      
+      // Load assignments for current site
+      if (STATE.sites[STATE.currentSite]) {
+        MULTISITE.loadSiteAssignments(STATE.currentSite);
+      }
+      
       renderAllBadges();
       setupVPH(Number((snap.meta && snap.meta.plannedHC) || 0));
       output.textContent = '';
@@ -3530,75 +3813,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enhanced export analytics with multiple formats
   exportAnalyticsBtn?.addEventListener('click', () => {
-    // Create comprehensive analytics export
+    // Export only Assignment History as CSV (with Quarter)
     const currentDate = new Date().toISOString().split('T')[0];
-    
-    // 1. Full Analytics Export (JSON)
-    const analyticsData = {
-      exportDate: new Date().toISOString(),
-      version: '1.0',
-      metadata: {
-        totalSessions: STATE.analytics.sessions.length,
-        totalAssignments: STATE.analytics.history.length,
-        totalEmployees: Object.keys(STATE.analytics.performance).length,
-        dataRange: {
-          firstRecord: STATE.analytics.history.length > 0 ? STATE.analytics.history[0].timestamp : null,
-          lastRecord: STATE.analytics.history.length > 0 ? STATE.analytics.history[STATE.analytics.history.length - 1].timestamp : null
-        }
-      },
-      sessions: STATE.analytics.sessions,
-      assignments: STATE.analytics.history,
-      employeePerformance: STATE.analytics.performance,
-      insights: generateWorkforceInsights(),
-      recommendations: ANALYTICS.getOptimizationSuggestions(),
-      summary: {
-        topPerformers: Object.values(STATE.analytics.performance)
-          .sort((a, b) => b.performanceScore - a.performanceScore)
-          .slice(0, 5)
-          .map(emp => ({
-            name: emp.name,
-            employeeId: emp.employeeId,
-            performanceScore: emp.performanceScore,
-            versatility: emp.versatility,
-            totalAssignments: emp.totalAssignments
-          })),
-        processStatistics: generateProcessStatistics(),
-        productivityMetrics: calculateOverallProductivityMetrics()
-      }
-    };
-    
-    // Export full data as JSON
-    const jsonBlob = new Blob([JSON.stringify(analyticsData, null, 2)], {type: 'application/json'});
-    const jsonLink = document.createElement('a');
-    jsonLink.href = URL.createObjectURL(jsonBlob);
-    jsonLink.download = `vlab-analytics-full-${currentDate}.json`;
-    jsonLink.click();
-    
-    // 2. Performance Report (CSV)
-    const csvData = generatePerformanceCSV();
-    const csvBlob = new Blob([csvData], {type: 'text/csv'});
-    const csvLink = document.createElement('a');
-    csvLink.href = URL.createObjectURL(csvBlob);
-    csvLink.download = `vlab-performance-report-${currentDate}.csv`;
-    csvLink.click();
-    
-    // 3. Assignment History (CSV)
     const assignmentCSV = generateAssignmentHistoryCSV();
     const assignmentBlob = new Blob([assignmentCSV], {type: 'text/csv'});
     const assignmentLink = document.createElement('a');
     assignmentLink.href = URL.createObjectURL(assignmentBlob);
     assignmentLink.download = `vlab-assignment-history-${currentDate}.csv`;
     assignmentLink.click();
-    
-    // 4. Executive Summary (HTML Report)
-    const htmlReport = generateExecutiveReport();
-    const htmlBlob = new Blob([htmlReport], {type: 'text/html'});
-    const htmlLink = document.createElement('a');
-    htmlLink.href = URL.createObjectURL(htmlBlob);
-    htmlLink.download = `vlab-executive-summary-${currentDate}.html`;
-    htmlLink.click();
-    
-    alert('Analytics export completed! 4 files have been downloaded:\n1. Full Analytics Data (JSON)\n2. Performance Report (CSV)\n3. Assignment History (CSV)\n4. Executive Summary (HTML)');
+    alert('Assignment history exported as CSV.');
   });
 
   // Generate CSV export for performance data
@@ -3642,26 +3865,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Generate CSV export for assignment history
   function generateAssignmentHistoryCSV() {
-    if (STATE.analytics.history.length === 0) return 'No assignment history available';
-    
+    // Always produce a CSV header; include Quarter column
     const headers = [
       'Timestamp', 'Date', 'Employee ID', 'Employee Name', 'Shift Code',
-      'Site', 'Action', 'From Location', 'To Location', 'Session ID'
+      'Site', 'Quarter', 'Action', 'From Location', 'To Location', 'Session ID'
     ];
-    
-    const rows = STATE.analytics.history.map(entry => [
+
+    const rows = (STATE.analytics.history || []).map(entry => [
       entry.timestamp,
       entry.date,
       entry.employeeId,
       entry.employeeName,
       entry.shiftCode,
       entry.site,
+      entry.quarter || '',
       entry.action,
       entry.fromLocation,
       entry.toLocation,
       entry.sessionId
     ]);
-    
+
     return [headers, ...rows].map(row => row.map(cell => `"${cell || ''}"`).join(',')).join('\n');
   }
 

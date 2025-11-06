@@ -21,6 +21,24 @@
 /* small AM/PA blocks on left */
 .small-blocks .am-pa{ background:#f8fafc; border:1px solid #e6e9ef; padding:6px 10px; border-radius:6px; font-weight:700; color:#111827; margin-bottom:4px; text-align:center; }
 
+/* Site selector in header */
+.site-selector .hb-value{ 
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); 
+  color: white; 
+  border: none; 
+  outline: none; 
+  appearance: none; 
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.site-selector .hb-value:hover{ 
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); 
+  transform: translateY(-1px);
+}
+.site-selector .hb-value:focus{ 
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); 
+}
+
 /* Make the header feel like a fixed physical header bar */
 .board-header{ position:sticky; top:0; z-index:60; background:#fff; box-shadow:0 2px 10px rgba(2,6,23,0.04); }
 
