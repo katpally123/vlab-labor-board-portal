@@ -2662,6 +2662,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const newLocation = key || 'unassigned';
       
       // Multi-site assignment logic
+      const isUploadedBadge = STATE.badges[badgeId].isUploaded;
+      console.log(`[DEBUG] Processing drop for badge ${badgeId}, isUploaded: ${isUploadedBadge}, oldLoc: ${oldLocation}, newLoc: ${newLocation}`);
+      
       if (newLocation === 'unassigned') {
         // Remove from ALL site assignments (badge becomes globally unassigned)
         Object.keys(STATE.sites).forEach(siteCode => {
@@ -2673,6 +2676,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ensure current site is properly synchronized before assignment
         MULTISITE.ensureCurrentSiteSync();
         const currentSite = STATE.currentSite;
+        console.log(`[DEBUG] Assigning to site: ${currentSite}, location: ${newLocation}`);
         
         // Check if badge was assigned elsewhere for logging
         const previousSiteAssignment = Object.keys(STATE.sites).find(siteCode => 
@@ -3024,18 +3028,19 @@ document.addEventListener('DOMContentLoaded', () => {
     output.textContent = 'Processing files…';
 
     const rosterFile = form.roster.files[0];
-    if (!rosterFile){ 
-      output.textContent = 'Roster file required.'; 
-      console.warn('[DEBUG] No roster file selected');
-      return; 
-    }
-    
-    console.log('[DEBUG] Roster file selected:', rosterFile.name, 'size:', rosterFile.size);
-    
     const swapFile = form.swap.files[0] || null;
     const vetFile = form.vetvto.files[0] || null;
     const lsFile = form.laborshare.files[0] || null;
     const missingFile = form.missing.files[0] || null;
+    
+    // Allow upload-only processing or require roster + upload
+    if (!rosterFile && !missingFile){ 
+      output.textContent = 'Please select at least a Roster file or Upload file to proceed.'; 
+      console.warn('[DEBUG] No files selected');
+      return; 
+    }
+    
+    console.log('[DEBUG] Roster file selected:', rosterFile.name, 'size:', rosterFile.size);
     
     console.log('[DEBUG] Upload file:', missingFile ? `${missingFile.name} (${missingFile.size} bytes)` : 'None selected');
 
@@ -3056,11 +3061,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     Promise.all([
-      parseCsv(rosterFile).catch(err => { console.error('[DEBUG] Roster parsing error:', err); return []; }),
+      rosterFile ? parseCsv(rosterFile).catch(err => { console.error('[DEBUG] Roster parsing error:', err); return []; }) : Promise.resolve([]),
       swapFile ? parseCsv(swapFile).catch(err => { console.error('[DEBUG] Swap parsing error:', err); return []; }) : Promise.resolve([]),
       vetFile ? parseCsv(vetFile).catch(err => { console.error('[DEBUG] VET parsing error:', err); return []; }) : Promise.resolve([]),
       lsFile ? parseCsv(lsFile).catch(err => { console.error('[DEBUG] Labor share parsing error:', err); return []; }) : Promise.resolve([]),
-      missingFile ? parseUploadFile(missingFile).catch(err => { console.error('[DEBUG] Upload file parsing error:', err); return []; }) : Promise.resolve([]),
+      missingFile ? parseCsv(missingFile).catch(err => { console.error('[DEBUG] Upload file parsing error:', err); return []; }) : Promise.resolve([]),
     ]).then(([roster, swaps, vetvto, labshare, missing]) => {
       console.debug('[build] rosterFile=', rosterFile && rosterFile.name, 'size=', rosterFile && rosterFile.size);
       console.debug('[build] parsed roster rows=', Array.isArray(roster) ? roster.length : typeof roster, roster && roster[0]);
@@ -3090,23 +3095,22 @@ document.addEventListener('DOMContentLoaded', () => {
       let combinedRoster = Array.isArray(roster) ? [...roster] : [];
       const uploadedEmployeeIds = new Set(); // Track which employees came from upload
       
+      console.log(`[DEBUG] Initial roster size: ${combinedRoster.length}`);
+      console.log(`[DEBUG] Upload file data:`, missing);
+      
       if (Array.isArray(missing) && missing.length > 0) {
         console.log(`[DEBUG] Processing ${missing.length} uploaded associates`);
         
         // Add uploaded associates to the roster with normalized headers
         missing.forEach(missingPerson => {
-          // Normalize the missing person data to match roster format
+          // Use same format as roster - simple normalization
           const normalizedPerson = {
-            'Employee ID': missingPerson['Employee ID'] || missingPerson['User ID'] || '',
-            'Employee Name': missingPerson['Employee Name'] || '',
-            'Employee Status': missingPerson['Employee Status'] || 'Active', // Default to Active
-            'Shift Pattern': missingPerson['Shift Pattern'] || '',
-            'Department ID': missingPerson['Department ID'] || '',
-            'Management Area ID': missingPerson['Management Area ID'] || '',
-            'Badge Barcode ID': missingPerson['Badge Barcode ID'] || '',
-            'Employment Start Date': missingPerson['Employment Start Date'] || '',
-            'Employment Type': missingPerson['Employment Type'] || '',
-            'Manager Name': missingPerson['Manager Name'] || '',
+            'Employee ID': missingPerson['Employee ID'] || missingPerson['ID'] || missingPerson['EID'] || '',
+            'Employee Name': missingPerson['Employee Name'] || missingPerson['Name'] || missingPerson['Full Name'] || '',
+            'Employee Status': missingPerson['Employee Status'] || missingPerson['Status'] || 'Active',
+            'Shift Pattern': missingPerson['Shift Pattern'] || missingPerson['ShiftCode'] || missingPerson['Shift Code'] || missingPerson['Shift'] || '',
+            'Department ID': missingPerson['Department ID'] || missingPerson['DepartmentID'] || missingPerson['Dept ID'] || '',
+            'Management Area ID': missingPerson['Management Area ID'] || missingPerson['ManagementAreaID'] || '',
             '_isUploaded': true // Mark as uploaded
           };
           
@@ -3126,6 +3130,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log(`[DEBUG] Combined roster now has ${combinedRoster.length} total employees`);
         console.log(`[DEBUG] Uploaded employee IDs:`, Array.from(uploadedEmployeeIds));
+        
+        // Show sample of combined data
+        const uploadedInCombined = combinedRoster.filter(r => r['_isUploaded'] === true);
+        console.log(`[DEBUG] Uploaded associates in combined roster:`, uploadedInCombined.length, uploadedInCombined);
       }
 
       const activeRows = combinedRoster.filter(r => String(r['Employee Status'] ?? r.Status ?? '').toLowerCase() === 'active');
@@ -3138,10 +3146,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }
   const filtered = activeRows.filter(r => {
         const site = classifySite(r);
+        const sc = shiftCodeOf(r['Shift Pattern'] ?? r['ShiftCode'] ?? r['Shift Code'] ?? r['Shift'] ?? r['Pattern']);
+        const isUploaded = r['_isUploaded'] === true;
+        
+        if (isUploaded) {
+          console.log(`[DEBUG] Filtering uploaded associate:`, {
+            name: r['Employee Name'],
+            id: r['Employee ID'],
+            deptId: r['Department ID'],
+            mgmtArea: r['Management Area ID'],
+            classifiedSite: site,
+            selectedSite: siteSel,
+            shiftCode: sc,
+            shiftPattern: r['Shift Pattern']
+          });
+        }
+        
         if (siteSel === 'YHM2' && site !== 'YHM2') return false;
         if (siteSel === 'YDD2' && site !== 'YDD2') return false;
         if (siteSel === 'YDD4' && site !== 'YDD4') return false;
-        const sc = shiftCodeOf(r['Shift Pattern'] ?? r['ShiftCode'] ?? r['Shift Code'] ?? r['Shift'] ?? r['Pattern']);
         if (!allowed.has(sc)) return false;
         if (shiftSel === 'day' && !DAY_SET.has(sc)) return false;
         if (shiftSel === 'night' && !NIGHT_SET.has(sc)) return false;
@@ -3164,6 +3187,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const lsOUT = labshare.filter(x => (x.Direction ?? x.direction ?? '').toString().toUpperCase() === 'OUT').length;
 
       const baseHC = filtered.length;
+      const uploadedInFiltered = filtered.filter(r => r['_isUploaded'] === true).length;
+      console.log(`[DEBUG] After filtering: ${baseHC} total, ${uploadedInFiltered} uploaded associates`);
+      
       const plannedHC = baseHC - swapOUT + swapIN + vet - vto + lsIN - lsOUT;
       elPlan.textContent = String(plannedHC); elActual.textContent = '0';
 
@@ -3184,9 +3210,17 @@ document.addEventListener('DOMContentLoaded', () => {
         output.textContent = 'No badges created — check CSV headers and active status field.';
         console.warn('[build] no badges in STATE.badges');
       }
-  renderAllBadges();
-  // Snapshot initial quarter state (all current locs)
-  try{ STATE.quarterAssignments[STATE.currentQuarter] = {}; Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[STATE.currentQuarter][b.id] = b.loc; }); }catch(_){ }
+  // Ensure multi-site state is properly initialized
+      try {
+        MULTISITE.ensureCurrentSiteSync();
+        console.log('[DEBUG] Multi-site state synchronized');
+      } catch(err) {
+        console.warn('[DEBUG] Multi-site sync warning:', err);
+      }
+      
+      renderAllBadges();
+      // Snapshot initial quarter state (all current locs)
+      try{ STATE.quarterAssignments[STATE.currentQuarter] = {}; Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[STATE.currentQuarter][b.id] = b.loc; }); }catch(_){ }
       setupVPH(plannedHC);
       output.textContent = '';
 
@@ -3228,6 +3262,8 @@ document.addEventListener('DOMContentLoaded', () => {
       output.textContent = `Error processing files: ${err.message || err}. Please check CSV headers and try again.`; 
     });
   });
+
+
 
   // Load last roster from localStorage without uploading CSV
   const loadLastBtn = document.getElementById('loadLastBtn');

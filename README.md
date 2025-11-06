@@ -16,17 +16,18 @@ Next-gen VLAB Labor Board portal with new design specs, interactive headcount to
 - **Missing Associates**: Supplemental employee data for associates not in main roster
 
 ### Upload Feature
-Upload a CSV/TSV file with additional associates to supplement the main roster. The system will:
-- Auto-detect tab-separated or comma-separated format
-- Merge uploaded associates with the main roster
+Upload a CSV file with additional associates using the same format as the main roster. The system will:
+- Process uploaded associates independently or with main roster
 - Prevent duplicate entries (checks by Employee ID)
 - Apply same site filtering and shift validation
-- Add to unassigned pool for assignment
+- Add to unassigned pool with blue highlighting
+- Dedicated "Process Upload" button for standalone processing
 
-Expected file format (tab-separated or comma-separated):
+Expected file format (same as roster):
 ```
-Employee ID	User ID	Employee Name	Badge Barcode ID	Department ID	Employment Start Date	Employment Type	Employee Status	Manager Name	Management Area ID	Shift Pattern
-110888249	qruchikr	Ruchika,Ruchika	13966332	1299020	Wed Sep 22 00:00:00 UTC 2021	AMZN	Active	Bhatt,Devashish	3	DA6C0700
+Employee ID,Employee Name,Employee Status,Shift Pattern,Department ID,Management Area ID
+98765,Mike Wilson,Active,DA,1299020,21
+54321,Sarah Johnson,Active,DB,1211010,22
 ```
 
 ### Analytics System
