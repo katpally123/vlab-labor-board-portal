@@ -469,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return false;
       }
       
-      // Save current site assignments before switching
+      // Save current site assignments before switching (for site-specific assignments)
       this.saveCurrentSiteAssignments();
       
       // Update current site
@@ -480,8 +480,29 @@ document.addEventListener('DOMContentLoaded', () => {
       // Clear current tile displays
       this.clearAllTiles();
       
-      // Load assignments for the new site
-      this.loadSiteAssignments(siteCode);
+      // Apply site filtering without changing assignments - preserve ALL assignments
+      Object.values(STATE.badges).forEach(badge => {
+        const belongsToCurrentSite = this.badgeBelongsToSite(badge, siteCode);
+        if (!belongsToCurrentSite) {
+          // Badge doesn't belong to this site - hide it but preserve its assignment
+          badge.hidden = true;
+        } else {
+          // Badge belongs to this site - show it
+          badge.hidden = false;
+          
+          // For YDD2/YDD4: Use site-specific assignments
+          // For other sites: Keep existing assignments
+          if ((siteCode === 'YDD2' || siteCode === 'YDD4') && STATE.sites[siteCode].assignments[badge.id]) {
+            badge.loc = STATE.sites[siteCode].assignments[badge.id];
+          } else if (siteCode !== 'YDD2' && siteCode !== 'YDD4') {
+            // For non-YDD sites, preserve the existing assignment
+            // badge.loc stays as is
+          } else if ((siteCode === 'YDD2' || siteCode === 'YDD4') && !STATE.sites[siteCode].assignments[badge.id]) {
+            // YDD2/YDD4 badge with no assignment in current site - show as unassigned
+            badge.loc = 'unassigned';
+          }
+        }
+      });
       
       // Update header display
       const headerSelector = document.getElementById('headerSiteSelector');
@@ -497,6 +518,25 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Re-render all badges (unassigned + site assignments)
       renderAllBadges();
+      
+      // Save complete state to ensure all assignments persist across refreshes
+      try {
+        const snap = {
+          badges: STATE.badges,
+          sites: STATE.sites,
+          currentSite: STATE.currentSite,
+          meta: {
+            date: document.getElementById('date')?.value || '',
+            shift: document.querySelector('input[name="shift"]:checked')?.value || 'day',
+            site: STATE.currentSite,
+            quarter: STATE.currentQuarter || 'Q1'
+          }
+        };
+        localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
+        console.log('[SITE-SWITCH] Saved complete state after site switch');
+      } catch (saveError) {
+        console.warn('[SITE-SWITCH] Failed to save complete state:', saveError);
+      }
       
       console.log(`[MULTISITE] Switched from ${oldSite} to ${siteCode}`);
       
@@ -514,17 +554,48 @@ document.addEventListener('DOMContentLoaded', () => {
       // Clear existing assignments for this site
       STATE.sites[currentSite].assignments = {};
       
-      // Save all non-unassigned badge locations to current site
+      // Save only assignments for badges that belong to current site AND are currently visible
       Object.values(STATE.badges).forEach(badge => {
-        if (badge.loc !== 'unassigned') {
+        if (badge.loc !== 'unassigned' && 
+            badge.loc !== 'hidden' && 
+            badge.loc !== 'assigned-elsewhere' &&
+            this.badgeBelongsToSite(badge, currentSite)) {
           STATE.sites[currentSite].assignments[badge.id] = badge.loc;
+          
+          // Special debugging for YDD4 saves
+          if (currentSite === 'YDD4') {
+            console.log(`[YDD4-SAVE] Saving ${badge.name} → ${badge.loc} to YDD4 assignments`);
+          }
         }
       });
       
       console.log(`[MULTISITE] Saved ${Object.keys(STATE.sites[currentSite].assignments).length} assignments for ${currentSite}`);
+      
+      // Special debugging for YDD4 saves
+      if (currentSite === 'YDD4') {
+        console.log(`[YDD4-SAVE] Final YDD4 assignments:`, STATE.sites[currentSite].assignments);
+      }
     },
     
-    // Load assignments for a specific site
+    // Check if a badge belongs to the current site based on classification
+    badgeBelongsToSite: function(badge, targetSite) {
+      const badgeSite = badge.site; // This is the classified site from when badge was created
+      
+      // YHM2 is separate - only YHM2 badges show in YHM2
+      if (targetSite === 'YHM2') {
+        return badgeSite === 'YHM2';
+      }
+      
+      // YDD2 and YDD4 share the same associate pool but have separate assignments
+      if (targetSite === 'YDD2' || targetSite === 'YDD4') {
+        return badgeSite === 'YDD2' || badgeSite === 'YDD4';
+      }
+      
+      // Exact match for other sites
+      return badgeSite === targetSite;
+    },
+    
+    // Load assignments for a specific site with proper badge filtering
     loadSiteAssignments: function(siteCode) {
       if (!STATE.sites[siteCode]) return;
       
@@ -534,23 +605,57 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const siteAssignments = STATE.sites[siteCode].assignments || {};
       
-      // Reset all badges to unassigned first, but keep global assignment state
+      // Filter and set badge states based on site classification
+      let visibleBadges = 0;
+      let hiddenBadges = 0;
+      let restoredAssignments = 0;
+      
       Object.values(STATE.badges).forEach(badge => {
-        // Check if this badge is assigned in ANY site
-        const isAssignedAnywhere = Object.values(STATE.sites).some(site => 
-          site.assignments && site.assignments[badge.id]
+        const belongsToCurrentSite = this.badgeBelongsToSite(badge, siteCode);
+        
+        if (!belongsToCurrentSite) {
+          // Badge doesn't belong to this site - hide it completely
+          badge.loc = 'hidden';
+          hiddenBadges++;
+          return;
+        }
+        
+        visibleBadges++;
+        
+        // Badge belongs to this site - preserve existing assignment if it exists
+        const savedAssignmentLocation = badge.loc; // This is the assignment from saved state
+        const isAssignedInCurrentSite = siteAssignments[badge.id];
+        const isAssignedInOtherSites = Object.keys(STATE.sites).some(otherSite => 
+          otherSite !== siteCode && 
+          STATE.sites[otherSite].assignments && 
+          STATE.sites[otherSite].assignments[badge.id]
         );
         
-        if (isAssignedAnywhere) {
-          // If assigned in current site, show the assignment
-          if (siteAssignments[badge.id]) {
-            badge.loc = siteAssignments[badge.id];
-          } else {
-            // Assigned in another site, mark as assigned but not visible
-            badge.loc = 'assigned-elsewhere';
-          }
+        // For YDD2/YDD4 sites: use site-specific assignments only
+        // For other sites: prefer saved badge location if it's a valid process assignment
+        if ((siteCode === 'YDD2' || siteCode === 'YDD4') && isAssignedInCurrentSite) {
+          // YDD2/YDD4: Use site-specific assignment data only
+          badge.loc = siteAssignments[badge.id];
+          restoredAssignments++;
+        } else if ((siteCode === 'YDD2' || siteCode === 'YDD4') && !isAssignedInCurrentSite) {
+          // YDD2/YDD4: No assignment for this site - show as unassigned
+          badge.loc = 'unassigned';
+        } else if (savedAssignmentLocation && 
+            savedAssignmentLocation !== 'unassigned' && 
+            savedAssignmentLocation !== 'assigned-elsewhere' && 
+            savedAssignmentLocation !== 'hidden') {
+          // Other sites: Keep the saved assignment
+          badge.loc = savedAssignmentLocation;
+          restoredAssignments++;
+        } else if (isAssignedInCurrentSite) {
+          // Other sites: Use site assignment data
+          badge.loc = siteAssignments[badge.id];
+          restoredAssignments++;
+        } else if (isAssignedInOtherSites) {
+          // Assigned in another site but belongs to current site - show as assigned elsewhere
+          badge.loc = 'assigned-elsewhere';
         } else {
-          // Truly unassigned
+          // Not assigned anywhere - show as unassigned
           badge.loc = 'unassigned';
         }
       });
@@ -558,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Restore previous suppress flag
       STATE.suppressAnalytics = oldSuppressFlag;
       
-      console.log(`[MULTISITE] Loaded ${Object.keys(siteAssignments).length} assignments for ${siteCode}`);
+      console.log(`[MULTISITE] Loaded site ${siteCode}: ${visibleBadges} visible badges, ${hiddenBadges} hidden, ${restoredAssignments} assignments restored`);
     },
     
     // Clear all tile displays
@@ -641,10 +746,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const raw = localStorage.getItem('vlab:lastRoster');
         if (raw) {
           const snap = JSON.parse(raw);
+          
+          // Update multi-site data
           snap.sites = STATE.sites;
           snap.currentSite = STATE.currentSite;
+          
+          // Update badge states (assignments)
+          snap.badges = STATE.badges;
+          
           localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
-          console.debug('[MULTISITE] Saved multi-site state to localStorage');
+          
+          // Debug: Count assignments being saved
+          const assignedCount = Object.values(STATE.badges).filter(b => b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere').length;
+          console.debug('[MULTISITE] Saved multi-site state with', assignedCount, 'assigned badges to localStorage');
+        } else {
+          console.warn('[MULTISITE] No existing roster snapshot found to update');
         }
       } catch(e) {
         console.warn('[MULTISITE] Failed to save to localStorage:', e);
@@ -2452,11 +2568,413 @@ document.addEventListener('DOMContentLoaded', () => {
     if (qa){ const parsed = JSON.parse(qa); if (parsed && typeof parsed === 'object') STATE.quarterAssignments = Object.assign({Q1:{},Q2:{},Q3:{}}, parsed); }
   }catch(_){ }
   
+  // Auto-load last roster and assignments on page refresh
+  function autoLoadLastRoster() {
+    console.log('[AUTO-LOAD] Starting auto-load process...');
+    try {
+      const raw = localStorage.getItem('vlab:lastRoster');
+      console.log('[AUTO-LOAD] Raw data found:', !!raw, raw ? raw.length + ' characters' : 'none');
+      if (raw) {
+        const snap = JSON.parse(raw);
+        console.log('[AUTO-LOAD] Parsed roster data:', {
+          hasBadges: !!snap.badges,
+          badgeCount: snap.badges ? Object.keys(snap.badges).length : 0,
+          hasSites: !!snap.sites,
+          currentSite: snap.currentSite,
+          hasMeta: !!snap.meta
+        });
+        console.log('[AUTO-LOAD] Found saved roster data, restoring assignments...');
+        
+        // Restore badges
+        if (snap.badges) {
+          console.log('[AUTO-LOAD] Restoring', Object.keys(snap.badges).length, 'badges');
+          STATE.badges = snap.badges;
+          
+          // Debug: Count initial assignments in badges
+          const initialAssigned = Object.values(STATE.badges).filter(b => b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere');
+          console.log('[AUTO-LOAD] Badges with assignments found:', initialAssigned.length);
+          initialAssigned.forEach(b => console.log('  -', b.name, '→', b.loc));
+        }
+        
+        // Restore multi-site data
+        if (snap.sites) {
+          STATE.sites = snap.sites;
+          console.log('[AUTO-LOAD] Restored site data:', STATE.sites);
+          
+          // Debug YDD4 assignments specifically
+          if (STATE.sites.YDD4 && STATE.sites.YDD4.assignments) {
+            console.log('[AUTO-LOAD] YDD4 assignments restored from localStorage:', STATE.sites.YDD4.assignments);
+          }
+        }
+        
+        // Restore current site
+        if (snap.currentSite) {
+          STATE.currentSite = snap.currentSite;
+          // Update UI selectors
+          const headerSelector = document.getElementById('headerSiteSelector');
+          const formSelector = document.getElementById('site');
+          if (headerSelector) headerSelector.value = snap.currentSite;
+          if (formSelector) formSelector.value = snap.currentSite;
+        }
+        
+        // Restore form data
+        if (snap.meta) {
+          if (snap.meta.date) {
+            const dateInput = document.getElementById('date');
+            if (dateInput) dateInput.value = snap.meta.date;
+          }
+          if (snap.meta.shift) {
+            const shiftRadio = document.querySelector(`input[name="shift"][value="${snap.meta.shift}"]`);
+            if (shiftRadio) shiftRadio.checked = true;
+          }
+          if (snap.meta.site) {
+            const siteSelect = document.getElementById('site');
+            if (siteSelect) siteSelect.value = snap.meta.site;
+          }
+          if (snap.meta.quarter) {
+            STATE.currentQuarter = snap.meta.quarter;
+            const quarterSelect = document.getElementById('quarter');
+            if (quarterSelect) quarterSelect.value = snap.meta.quarter;
+          }
+        }
+        
+        // Restore assignments with perfect preservation across all sites
+        if (STATE.sites && STATE.currentSite) {
+          console.log('[AUTO-LOAD] Applying site-based filtering while preserving all assignments for:', STATE.currentSite);
+          
+          // Special handling for YDD2/YDD4 to ensure site-specific assignments are properly restored
+          if (STATE.currentSite === 'YDD2' || STATE.currentSite === 'YDD4') {
+            console.log(`[AUTO-LOAD] Special YDD handling for site: ${STATE.currentSite}`);
+            console.log(`[AUTO-LOAD] ${STATE.currentSite} assignments:`, STATE.sites[STATE.currentSite].assignments);
+            
+            // Count assignments before restoration
+            const assignmentCount = Object.keys(STATE.sites[STATE.currentSite].assignments).length;
+            console.log(`[AUTO-LOAD] Found ${assignmentCount} assignments for ${STATE.currentSite}`);
+            
+            // For YDD sites, sync badge.loc with site-specific assignments
+            Object.values(STATE.badges).forEach(badge => {
+              const belongsToCurrentSite = MULTISITE.badgeBelongsToSite(badge, STATE.currentSite);
+              if (!belongsToCurrentSite) {
+                // Badge doesn't belong to this site - hide it but preserve its assignment
+                badge.hidden = true;
+              } else {
+                // Badge belongs to this site - show it
+                badge.hidden = false;
+                
+                // Sync with site-specific assignment
+                const siteAssignment = STATE.sites[STATE.currentSite].assignments[badge.id];
+                if (siteAssignment) {
+                  // Override badge location with site-specific assignment
+                  const oldLoc = badge.loc;
+                  badge.loc = siteAssignment;
+                  console.log(`[AUTO-LOAD] Restored ${badge.name} from ${oldLoc} to ${siteAssignment} for ${STATE.currentSite}`);
+                  
+                  // Special debugging for YDD4 restorations
+                  if (STATE.currentSite === 'YDD4') {
+                    console.log(`[YDD4-AUTO-LOAD] Successfully restored YDD4 assignment: ${badge.name} → ${siteAssignment}`);
+                  }
+                } else {
+                  // No assignment for this site - keep as unassigned for this site
+                  badge.loc = 'unassigned';
+                  
+                  // Special debugging for YDD4 when no assignment found
+                  if (STATE.currentSite === 'YDD4') {
+                    console.log(`[YDD4-AUTO-LOAD] No assignment found for ${badge.name} in YDD4, setting to unassigned`);
+                  }
+                }
+              }
+            });
+          } else {
+            // For non-YDD sites, apply site filtering without changing assignments - just hide/show badges
+            Object.values(STATE.badges).forEach(badge => {
+              const belongsToCurrentSite = MULTISITE.badgeBelongsToSite(badge, STATE.currentSite);
+              if (!belongsToCurrentSite) {
+                // Badge doesn't belong to this site - hide it but preserve its assignment
+                badge.hidden = true;
+              } else {
+                // Badge belongs to this site - show it and keep its existing assignment
+                badge.hidden = false;
+              }
+            });
+          }
+          
+          console.log('[AUTO-LOAD] Site filtering applied while preserving all assignments');
+        }
+        
+        // Update display and render
+        try {
+          console.log('[AUTO-LOAD] Restoring badges:', Object.keys(STATE.badges).length);
+          console.log('[AUTO-LOAD] Restoring sites:', Object.keys(STATE.sites || {}).length);
+          
+          // Count assignments for verification
+          const assignedCount = Object.values(STATE.badges).filter(b => b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere').length;
+          console.log('[AUTO-LOAD] Assigned badges count:', assignedCount);
+          
+          renderAllBadges();
+          setCounts();
+          updateActualHC();
+          
+          // Update summary display manually
+          if (snap.meta) {
+            const elDate = document.getElementById('displayDate');
+            const elDay = document.getElementById('displayDay');
+            const elShift = document.getElementById('displayShift');
+            const elSite = document.getElementById('displaySite');
+            
+            if (elDate && snap.meta.date) elDate.textContent = snap.meta.date;
+            if (elShift && snap.meta.shift) elShift.textContent = snap.meta.shift;
+            if (elSite && snap.meta.site) elSite.textContent = snap.meta.site;
+            
+            if (elDay && snap.meta.date) {
+              const dayDate = parseInputDate(snap.meta.date);
+              if (dayDate) {
+                const dayOfWeek = dayNames[dayDate.getDay()];
+                elDay.textContent = dayOfWeek;
+              }
+            }
+          }
+          
+          // Start analytics session for the restored roster
+          if (snap.meta) {
+            ANALYTICS.endSession(); // End any existing session
+            ANALYTICS.startSession({
+              date: snap.meta.date,
+              shift: snap.meta.shift,
+              site: snap.meta.site,
+              plannedHC: snap.meta.plannedHC || 0,
+              notes: 'Auto-loaded from saved roster'
+            });
+            console.log('[AUTO-LOAD] Started analytics session for restored roster');
+          }
+          
+          // Display a visual confirmation of restoration
+        const output = document.getElementById('output');
+        if (output) {
+          const assignedCount = Object.values(STATE.badges).filter(b => 
+            b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere' && b.loc !== 'hidden'
+          ).length;
+          output.textContent = `✅ Restored board state: ${assignedCount} assignments preserved across refresh`;
+          output.style.color = '#059669'; // Green color
+          setTimeout(() => {
+            output.textContent = '';
+          }, 5000);
+        }
+        
+        console.log('[AUTO-LOAD] Successfully restored board state');
+        } catch (renderError) {
+          console.error('[AUTO-LOAD] Error during render:', renderError);
+        }
+      }
+    } catch (error) {
+      console.warn('[AUTO-LOAD] Failed to auto-load roster:', error);
+    }
+  }
+  
+  // Auto-load after a delay to ensure DOM is ready
+  setTimeout(() => {
+    console.log('[AUTO-LOAD] Timer triggered, checking if DOM is ready...');
+    // Double-check that key elements are available
+    const formEl = document.getElementById('laborForm');
+    const unassignedEl = document.getElementById('unassignedStack');
+    
+    if (formEl && unassignedEl) {
+      console.log('[AUTO-LOAD] DOM elements found, proceeding with auto-load...');
+      
+      // Check current STATE before auto-load
+      console.log('[AUTO-LOAD] Current STATE before auto-load:');
+      console.log('  - Badges:', Object.keys(STATE.badges || {}).length);
+      console.log('  - Sites:', Object.keys(STATE.sites || {}).length);
+      console.log('  - Current site:', STATE.currentSite);
+      
+      autoLoadLastRoster();
+    } else {
+      console.warn('[AUTO-LOAD] DOM not ready, retrying in 1 second...');
+      setTimeout(autoLoadLastRoster, 1000);
+    }
+  }, 800);
+  
   // Debug function to test analytics
   window.debugAnalytics = function() {
     console.log('STATE.analytics:', STATE.analytics);
     console.log('ANALYTICS object:', ANALYTICS);
     console.log('PapaParse available:', typeof Papa !== 'undefined');
+  };
+  
+  // Debug function to check localStorage
+  window.debugStorage = function() {
+    const raw = localStorage.getItem('vlab:lastRoster');
+    if (raw) {
+      const data = JSON.parse(raw);
+      console.log('=== LOCALSTORAGE DEBUG ===');
+      console.log('Data found:', !!data);
+      console.log('Badges:', data.badges ? Object.keys(data.badges).length : 0);
+      console.log('Sites:', data.sites ? Object.keys(data.sites) : []);
+      console.log('Current site:', data.currentSite);
+      
+      if (data.badges) {
+        const assigned = Object.values(data.badges).filter(b => b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere');
+        console.log('Assigned badges in storage:', assigned.length);
+        assigned.forEach(b => console.log('  -', b.name, '→', b.loc));
+      }
+      
+      if (data.sites && data.currentSite && data.sites[data.currentSite]) {
+        console.log('Site assignments in storage:', Object.keys(data.sites[data.currentSite].assignments || {}).length);
+      }
+      
+      console.log('=== END DEBUG ===');
+    } else {
+      console.log('No roster data in localStorage');
+    }
+  };
+
+  // Debug function to check site assignment isolation
+  window.debugSiteAssignments = function() {
+    console.group('🔍 Site Assignment Debug');
+    console.log('Current site:', STATE.currentSite);
+    
+    Object.keys(STATE.sites || {}).forEach(siteCode => {
+      const siteData = STATE.sites[siteCode];
+      const assignmentCount = Object.keys(siteData.assignments || {}).length;
+      console.log(`${siteCode}: ${assignmentCount} assignments`, siteData.assignments);
+    });
+    
+    // Show visible badges for current site
+    if (STATE.badges) {
+      const visibleBadges = Object.values(STATE.badges).filter(badge => 
+        badge.loc !== 'hidden' && MULTISITE.badgeBelongsToSite(badge, STATE.currentSite)
+      );
+      console.log(`Visible badges in ${STATE.currentSite}:`, visibleBadges.length);
+      
+      const assignedBadges = visibleBadges.filter(badge => 
+        badge.loc !== 'unassigned' && badge.loc !== 'assigned-elsewhere'
+      );
+      console.log(`Assigned badges in ${STATE.currentSite}:`, assignedBadges.length);
+      assignedBadges.forEach(badge => {
+        console.log(`  - ${badge.name} (${badge.site}) → ${badge.loc}`);
+      });
+    }
+    
+    console.groupEnd();
+  };
+  
+  // Test function to verify assignment persistence
+  window.testPersistence = function() {
+    console.group('🧪 Assignment Persistence Test');
+    
+    const totalBadges = Object.keys(STATE.badges || {}).length;
+    const allAssignments = Object.values(STATE.badges || {}).filter(b => 
+      b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere' && b.loc !== 'hidden'
+    );
+    
+    console.log(`Total badges: ${totalBadges}`);
+    console.log(`Total assignments: ${allAssignments.length}`);
+    
+    // Group assignments by site
+    const assignmentsBySite = {};
+    allAssignments.forEach(badge => {
+      const site = badge.site || 'Unknown';
+      if (!assignmentsBySite[site]) assignmentsBySite[site] = [];
+      assignmentsBySite[site].push(badge);
+    });
+    
+    Object.keys(assignmentsBySite).forEach(site => {
+      console.log(`${site}: ${assignmentsBySite[site].length} assignments`);
+      assignmentsBySite[site].forEach(badge => {
+        console.log(`  - ${badge.name} → ${badge.loc}`);
+      });
+    });
+    
+    // Check localStorage
+    const saved = localStorage.getItem('vlab:lastRoster');
+    if (saved) {
+      const data = JSON.parse(saved);
+      const savedAssignments = Object.values(data.badges || {}).filter(b => 
+        b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere' && b.loc !== 'hidden'
+      );
+      console.log(`Saved assignments in localStorage: ${savedAssignments.length}`);
+    } else {
+      console.log('No saved data in localStorage');
+    }
+    
+    console.groupEnd();
+  };
+
+  // Debug YDD2/YDD4 assignment restoration specifically
+  window.debugYDDAssignments = function() {
+    console.group('🔍 YDD2/YDD4 Assignment Debug');
+    
+    console.log('Current site:', STATE.currentSite);
+    console.log('YDD2 assignments:', STATE.sites?.YDD2?.assignments || {});
+    console.log('YDD4 assignments:', STATE.sites?.YDD4?.assignments || {});
+    
+    // Check badge locations for YDD associates
+    const yddBadges = Object.values(STATE.badges || {}).filter(b => 
+      b.site === 'YDD2' || b.site === 'YDD4'
+    );
+    
+    console.log(`Total YDD badges: ${yddBadges.length}`);
+    
+    yddBadges.forEach(badge => {
+      const inYDD2 = STATE.sites?.YDD2?.assignments?.[badge.id];
+      const inYDD4 = STATE.sites?.YDD4?.assignments?.[badge.id];
+      console.log(`${badge.name} (${badge.site}): loc=${badge.loc}, YDD2=${inYDD2 || 'none'}, YDD4=${inYDD4 || 'none'}`);
+    });
+    
+    // Check localStorage specifically for YDD assignments
+    const saved = localStorage.getItem('vlab:lastRoster');
+    if (saved) {
+      const data = JSON.parse(saved);
+      console.log('Saved YDD2 assignments:', data.sites?.YDD2?.assignments || {});
+      console.log('Saved YDD4 assignments:', data.sites?.YDD4?.assignments || {});
+    }
+    
+    console.groupEnd();
+  };
+
+  // Test YDD4 assignment persistence specifically
+  window.testYDD4Persistence = function() {
+    console.group('🧪 YDD4 Assignment Persistence Test');
+    
+    // Switch to YDD4 and check assignments
+    if (STATE.currentSite !== 'YDD4') {
+      console.log('Switching to YDD4 to test assignments...');
+      MULTISITE.switchToSite('YDD4');
+    }
+    
+    // Count visible YDD badges and their assignments
+    const visibleYDDBadges = Object.values(STATE.badges).filter(badge => 
+      !badge.hidden && (badge.site === 'YDD2' || badge.site === 'YDD4')
+    );
+    
+    const assignedYDDBadges = visibleYDDBadges.filter(badge => 
+      badge.loc !== 'unassigned' && badge.loc !== 'assigned-elsewhere'
+    );
+    
+    console.log(`Visible YDD badges in YDD4: ${visibleYDDBadges.length}`);
+    console.log(`Assigned YDD badges in YDD4: ${assignedYDDBadges.length}`);
+    
+    // Show specific assignments
+    assignedYDDBadges.forEach(badge => {
+      console.log(`  ${badge.name} → ${badge.loc}`);
+    });
+    
+    // Check if YDD4 site assignments match badge locations
+    const ydd4SiteAssignments = STATE.sites?.YDD4?.assignments || {};
+    const ydd4AssignmentCount = Object.keys(ydd4SiteAssignments).length;
+    
+    console.log(`YDD4 site assignments: ${ydd4AssignmentCount}`);
+    console.log('YDD4 assignments:', ydd4SiteAssignments);
+    
+    // Check localStorage consistency
+    const saved = localStorage.getItem('vlab:lastRoster');
+    if (saved) {
+      const data = JSON.parse(saved);
+      const savedYDD4Assignments = data.sites?.YDD4?.assignments || {};
+      console.log('Saved YDD4 assignments count:', Object.keys(savedYDD4Assignments).length);
+      console.log('Saved YDD4 assignments:', savedYDD4Assignments);
+    }
+    
+    console.groupEnd();
   };
 
   // --- helpers ---
@@ -2508,16 +3026,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function toNum(x){ const n = Number(x); return Number.isFinite(n) ? n : NaN; }
 
-  // simplistic site classifier (keeps original behaviour expectation)
+  // Site classifier - YDD2 and YDD4 share the same associate pool
   function classifySite(row){
     const d = toNum(row['Department ID'] ?? row.DepartmentID ?? row['Dept ID']);
     const a = toNum(row['Management Area ID'] ?? row.ManagementAreaID);
-    // fall back to Other if unknown
+    
     if (isFinite(d)){
+      // YHM2 associates (specific department IDs)
       if ([1211010,1211020,1299010,1299020].includes(d)) return 'YHM2';
       if ([1211030,1211040,1299030,1299040].includes(d)) return 'YHM2';
+      
+      // YDD2/YDD4 associates (shared pool - both sites use the same associates)
       if ([1211070,1299070].includes(d) && a === 22) return 'YDD2';
       if ([1211080,1299080].includes(d) && a === 24) return 'YDD4';
+      
+      // Additional YDD site patterns (if any other dept IDs should be included)
+      // Both YDD2 and YDD4 can access associates from either classification
     }
     return 'Other';
   }
@@ -2627,9 +3151,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const counts = {};
     TILES.forEach(([id,key]) => counts[key] = 0);
     
-    // Count badges, but exclude 'assigned-elsewhere' from all counts
+    // Count badges, but exclude 'assigned-elsewhere' and 'hidden' from all counts
     Object.values(STATE.badges).forEach(b => { 
-      if (b.loc !== 'assigned-elsewhere') {
+      if (b.loc !== 'assigned-elsewhere' && b.loc !== 'hidden') {
         counts[b.loc] = (counts[b.loc] || 0) + 1; 
       }
     });
@@ -2642,9 +3166,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     
-    // Count truly unassigned badges (not assigned anywhere)
+    // Count truly unassigned badges (not assigned anywhere and not hidden)
     const trulyUnassigned = Object.values(STATE.badges).filter(b => {
-      if (b.loc !== 'unassigned') return false;
+      if (b.loc !== 'unassigned' || b.loc === 'hidden') return false;
       // Check if assigned in any site
       return !Object.values(STATE.sites).some(site => 
         site.assignments && site.assignments[b.id]
@@ -2741,6 +3265,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           console.log(`[MULTISITE] New assignment: badge ${badgeId} assigned to ${currentSite}/${newLocation}`);
         }
+        
+        // Special debugging for YDD4 assignments
+        if (currentSite === 'YDD4') {
+          console.log(`[YDD4-DEBUG] Assignment made - Badge: ${badgeId}, Location: ${newLocation}`);
+          console.log(`[YDD4-DEBUG] YDD4 assignments now:`, STATE.sites.YDD4.assignments);
+          console.log(`[YDD4-DEBUG] Badge loc set to:`, STATE.badges[badgeId].loc);
+        }
       }
       
       // Save change into current quarter snapshot
@@ -2761,6 +3292,31 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Save multi-site state to localStorage
       MULTISITE.saveToStorage();
+      
+      // Also save a complete roster snapshot to ensure ALL assignments persist across refreshes
+      try {
+        const snap = {
+          badges: STATE.badges,
+          sites: STATE.sites,
+          currentSite: STATE.currentSite,
+          meta: {
+            date: document.getElementById('date')?.value || '',
+            shift: document.querySelector('input[name="shift"]:checked')?.value || 'day',
+            site: STATE.currentSite,
+            quarter: STATE.currentQuarter || 'Q1'
+          }
+        };
+        localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
+        console.log('[DRAG-DROP] Saved complete roster snapshot with ALL assignments after assignment change');
+        
+        // Debug: Count total assignments being saved
+        const totalAssigned = Object.values(STATE.badges).filter(b => 
+          b.loc !== 'unassigned' && b.loc !== 'assigned-elsewhere' && b.loc !== 'hidden'
+        ).length;
+        console.log('[DRAG-DROP] Total assignments saved:', totalAssigned);
+      } catch (saveError) {
+        console.warn('[DRAG-DROP] Failed to save roster snapshot:', saveError);
+      }
       
       // move DOM node into container (append will move, not clone)
       if ((key || 'unassigned') === 'unassigned') unassignedStack.appendChild(node);
@@ -2980,12 +3536,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render unassigned as a compact list in the left panel (preview), and full list in overlay when open.
     const overlayOpen = !!document.getElementById('unassignedOverlay');
     const unassigned = Object.values(STATE.badges).filter(b => 
-      b.loc === 'unassigned' && !isAssignedAnywhere(b.id)
+      b.loc === 'unassigned' && !isAssignedAnywhere(b.id) && b.loc !== 'hidden'
     );
     const previewCount = overlayOpen ? Infinity : 6;
     let rendered = 0;
 
     Object.values(STATE.badges).forEach(b => {
+      // Skip hidden badges (not for current site)
+      if (b.loc === 'hidden') return;
+      
       // Only show as unassigned if not assigned anywhere
       if (b.loc === 'unassigned' && !isAssignedAnywhere(b.id)){
         if (rendered < previewCount){
@@ -2999,8 +3558,8 @@ document.addEventListener('DOMContentLoaded', () => {
           rendered++;
         }
         // otherwise skip rendering in preview mode; overlay will render full list when open
-      } else if (b.loc !== 'assigned-elsewhere') {
-        // Only render if assigned to current site (not assigned elsewhere)
+      } else if (b.loc !== 'assigned-elsewhere' && b.loc !== 'hidden') {
+        // Only render if assigned to current site (not assigned elsewhere or hidden)
         const node = renderBadge(b);
         if (b.present){ node.classList.add('present'); const t = document.createElement('div'); t.className='tick'; t.textContent='✓'; node.appendChild(t); }
         tileBadgeLayers[b.loc]?.appendChild(node);
@@ -3071,6 +3630,69 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize on DOM ready
   setTimeout(initializeHeaderSiteSelector, 100);
+
+  // Button event handlers
+  const loadLastBtn = document.getElementById('loadLastBtn');
+  const clearSavedBtn = document.getElementById('clearSavedBtn');
+  
+  // Load last roster button
+  if (loadLastBtn) {
+    loadLastBtn.addEventListener('click', () => {
+      autoLoadLastRoster();
+      output.textContent = 'Loaded last saved roster and assignments.';
+      
+      // Ensure analytics session is started
+      try {
+        const raw = localStorage.getItem('vlab:lastRoster');
+        if (raw) {
+          const snap = JSON.parse(raw);
+          if (snap.meta) {
+            ANALYTICS.endSession();
+            ANALYTICS.startSession({
+              date: snap.meta.date,
+              shift: snap.meta.shift,
+              site: snap.meta.site,
+              plannedHC: snap.meta.plannedHC || 0,
+              notes: 'Manually loaded roster'
+            });
+            console.log('[LOAD-ROSTER] Started analytics session');
+          }
+        }
+      } catch (error) {
+        console.warn('[LOAD-ROSTER] Failed to start analytics session:', error);
+      }
+    });
+  }
+  
+  // Clear Board button
+  if (clearSavedBtn) {
+    clearSavedBtn.addEventListener('click', () => {
+      if (confirm('Clear all assignments and move everyone back to unassigned?')) {
+        // Clear all assignments
+        Object.values(STATE.badges).forEach(badge => {
+          badge.loc = 'unassigned';
+        });
+        
+        // Clear multi-site assignments
+        Object.keys(STATE.sites).forEach(siteCode => {
+          STATE.sites[siteCode].assignments = {};
+        });
+        
+        // Save the cleared state
+        MULTISITE.saveToStorage();
+        
+        // Re-render the board
+        renderAllBadges();
+        setCounts();
+        
+        // Log the board clear action
+        ANALYTICS.logAssignment(null, 'Board Clear', 'All Unassigned');
+        
+        output.textContent = 'Board cleared - all associates moved to unassigned.';
+        console.log('[CLEAR-BOARD] All assignments cleared');
+      }
+    });
+  }
 
   // submit
   form.addEventListener('submit', (e) => {
@@ -3213,9 +3835,9 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
         
+        // Site filtering: YHM2 is separate, YDD2/YDD4 share associate pool
         if (siteSel === 'YHM2' && site !== 'YHM2') return false;
-        if (siteSel === 'YDD2' && site !== 'YDD2') return false;
-        if (siteSel === 'YDD4' && site !== 'YDD4') return false;
+        if ((siteSel === 'YDD2' || siteSel === 'YDD4') && (site !== 'YDD2' && site !== 'YDD4')) return false;
         if (!allowed.has(sc)) return false;
         if (shiftSel === 'day' && !DAY_SET.has(sc)) return false;
         if (shiftSel === 'night' && !NIGHT_SET.has(sc)) return false;
@@ -3241,6 +3863,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const uploadedInFiltered = filtered.filter(r => r['_isUploaded'] === true).length;
       console.log(`[DEBUG] After filtering: ${baseHC} total, ${uploadedInFiltered} uploaded associates`);
       
+      // Site summary for clarity
+      console.log(`[SITE-FILTER] Selected site: ${siteSel}`);
+      console.log(`[SITE-FILTER] Associates loaded for ${siteSel}: ${baseHC} (${uploadedInFiltered} from upload)`);
+      
+      // Debug: Show what was filtered out
+      const totalBeforeFilter = combinedRoster.length;
+      const filteredOutCount = totalBeforeFilter - baseHC;
+      if (filteredOutCount > 0) {
+        console.log(`[SITE-FILTER] Filtered out ${filteredOutCount} associates not matching ${siteSel} criteria`);
+        
+        // Show breakdown of filtered associates by site
+        const siteBreakdown = {};
+        combinedRoster.forEach(r => {
+          const site = classifySite(r);
+          siteBreakdown[site] = (siteBreakdown[site] || 0) + 1;
+        });
+        console.log(`[SITE-FILTER] Site breakdown in roster:`, siteBreakdown);
+      }
+      
       const plannedHC = baseHC - swapOUT + swapIN + vet - vto + lsIN - lsOUT;
       elPlan.textContent = String(plannedHC); elActual.textContent = '0';
 
@@ -3249,12 +3890,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = String(r['Employee Name'] ?? r['Name'] ?? r['Full Name'] ?? '').trim();
         const eid  = String(r['Employee ID'] ?? r['ID'] ?? r['EID'] ?? r['Employee Number'] ?? '').trim();
         const sc   = shiftCodeOf(r['Shift Pattern'] ?? r['ShiftCode'] ?? r['Shift Code'] ?? r['Shift'] ?? r['Pattern']);
+        const classifiedSite = classifySite(r); // Get the actual classified site for this associate
         const barcode = String(r['Barcode'] ?? r['Badge'] ?? r['Employee Login'] ?? r['Username'] ?? '').trim();
         const handle = String(r['Handle'] ?? r['Employee Handle'] ?? r['Login'] ?? '').trim();
         const photo = String(r['Photo'] ?? r['Photo URL'] ?? r['Image'] ?? '').trim();
         const id   = `b_${eid || idx}_${Math.random().toString(36).slice(2,8)}`;
         const isUploaded = r['_isUploaded'] === true; // Check if this came from upload
-        STATE.badges[id] = { id, name, eid, scode: sc, site: siteSel, present:false, loc:'unassigned', barcode, handle, photo, isUploaded };
+        STATE.badges[id] = { id, name, eid, scode: sc, site: classifiedSite, present:false, loc:'unassigned', barcode, handle, photo, isUploaded };
       });
 
       if (Object.keys(STATE.badges).length === 0){
@@ -3273,7 +3915,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Snapshot initial quarter state (all current locs)
       try{ STATE.quarterAssignments[STATE.currentQuarter] = {}; Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[STATE.currentQuarter][b.id] = b.loc; }); }catch(_){ }
       setupVPH(plannedHC);
-      output.textContent = '';
+      
+      // Show site-specific summary in output
+      const siteMessage = `✅ Loaded ${baseHC} associates for ${siteSel}` + 
+        (uploadedInFiltered > 0 ? ` (${uploadedInFiltered} from upload file)` : '');
+      output.innerHTML = `<div style="color: #059669; font-weight: 500;">${siteMessage}</div>`;
+      
+      console.log('[BUILD-COMPLETE] Board ready with site-filtered associates');
 
       // Start analytics session
       ANALYTICS.endSession(); // End any existing session
@@ -3299,12 +3947,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize current site to the selected site from form
         STATE.currentSite = siteSel;
         
+        // Save current assignments before creating snapshot
+        MULTISITE.saveCurrentSiteAssignments();
+        
         const snap = { 
           badges: STATE.badges, 
           sites: STATE.sites,
           currentSite: STATE.currentSite,
           meta: { date: dateStr, shift: shiftSel, site: siteSel, plannedHC, quarter: STATE.currentQuarter } 
         };
+        
+        // Debug: Log what we're saving
+        const assignedBadges = Object.values(STATE.badges).filter(b => b.loc !== 'unassigned');
+        const siteAssignmentCount = STATE.sites[STATE.currentSite] ? Object.keys(STATE.sites[STATE.currentSite].assignments).length : 0;
+        console.debug('[save] Saving roster with', assignedBadges.length, 'assigned badges and', siteAssignmentCount, 'site assignments');
+        
         localStorage.setItem('vlab:lastRoster', JSON.stringify(snap));
         console.debug('[save] saved roster snapshot with multi-site data to localStorage (vlab:lastRoster)');
       }catch(_){ /* ignore storage failures */ }
@@ -3316,69 +3973,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-  // Load last roster from localStorage without uploading CSV
-  const loadLastBtn = document.getElementById('loadLastBtn');
-  const clearSavedBtn = document.getElementById('clearSavedBtn');
-  loadLastBtn?.addEventListener('click', () => {
-    try{
-      const raw = localStorage.getItem('vlab:lastRoster');
-      if (!raw){ alert('No saved roster found. Build a board once to save the roster.'); return; }
-      const snap = JSON.parse(raw);
-      if (!snap || !snap.badges){ alert('Saved roster is invalid.'); return; }
-      STATE.badges = snap.badges;
-      
-      // Restore multi-site data if available
-      if (snap.sites) {
-        STATE.sites = snap.sites;
-      }
-      if (snap.currentSite) {
-        STATE.currentSite = snap.currentSite;
-      }
-      
-      // apply meta back to form/UI if available
-      if (snap.meta){
-        if (snap.meta.date) document.getElementById('date').value = snap.meta.date;
-        if (snap.meta.shift) { const r = document.querySelector(`input[name="shift"][value="${snap.meta.shift}"]`); if (r) r.checked = true; }
-        if (snap.meta.site) {
-          document.getElementById('site').value = snap.meta.site;
-          // Update header site selector
-          const headerSelector = document.getElementById('headerSiteSelector');
-          if (headerSelector) headerSelector.value = snap.meta.site;
-          // Update current site
-          STATE.currentSite = snap.meta.site;
-        }
-        if (snap.meta.plannedHC) document.getElementById('plannedVolumeStub').value = snap.meta.plannedHC;
-        if (snap.meta.quarter && quarterSelect){ quarterSelect.value = snap.meta.quarter; STATE.currentQuarter = snap.meta.quarter; }
-      }
-      
-      // Load assignments for current site
-      if (STATE.sites[STATE.currentSite]) {
-        MULTISITE.loadSiteAssignments(STATE.currentSite);
-      }
-      
-      renderAllBadges();
-      setupVPH(Number((snap.meta && snap.meta.plannedHC) || 0));
-      output.textContent = '';
-
-      // Start analytics session for loaded roster
-      if (snap.meta) {
-        ANALYTICS.endSession(); // End any existing session
-        ANALYTICS.startSession({
-          date: snap.meta.date,
-          shift: snap.meta.shift,
-          site: snap.meta.site,
-          plannedHC: snap.meta.plannedHC,
-          notes: 'Loaded from saved roster'
-        });
-      }
-    }catch(err){ console.error(err); alert('Failed to load saved roster. See console for details.'); }
-  });
-
-  clearSavedBtn?.addEventListener('click', () => {
-    if (!confirm('Clear saved roster from local storage?')) return;
-    localStorage.removeItem('vlab:lastRoster');
-    alert('Saved roster cleared.');
-  });
 
   function setupVPH(hc){
     const volInput = document.getElementById('plannedVolumeStub');
