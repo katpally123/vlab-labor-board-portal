@@ -845,6 +845,13 @@ document.addEventListener('DOMContentLoaded', () => {
           reliability: 0
         };
       }
+      
+      // Ensure processes is always a Set (fix for deserialization issues)
+      if (!(metrics.weeklyStats[weekKey].processes instanceof Set)) {
+        const existingProcesses = metrics.weeklyStats[weekKey].processes || [];
+        metrics.weeklyStats[weekKey].processes = new Set(Array.isArray(existingProcesses) ? existingProcesses : Object.keys(existingProcesses));
+      }
+      
       metrics.weeklyStats[weekKey].assignments++;
       if (logEntry.toLocation !== 'unassigned') {
         metrics.weeklyStats[weekKey].processes.add(logEntry.toLocation);
@@ -949,7 +956,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Save analytics data to localStorage
     saveAnalyticsData: function() {
       try {
-        localStorage.setItem('vlab:analytics', JSON.stringify(STATE.analytics));
+        // Create a deep copy and convert Set objects to arrays for serialization
+        const analyticsToSave = JSON.parse(JSON.stringify(STATE.analytics, (key, value) => {
+          if (value instanceof Set) {
+            return Array.from(value);
+          }
+          return value;
+        }));
+        
+        localStorage.setItem('vlab:analytics', JSON.stringify(analyticsToSave));
         console.debug('[Analytics] Saved analytics data to localStorage');
       } catch (error) {
         console.warn('[Analytics] Failed to save analytics data:', error);
@@ -968,6 +983,19 @@ document.addEventListener('DOMContentLoaded', () => {
             performance: parsed.performance || {},
             patterns: parsed.patterns || {}
           };
+          
+          // Fix Set objects that were serialized as arrays/objects
+          Object.values(STATE.analytics.performance).forEach(perf => {
+            if (perf.weeklyStats) {
+              Object.values(perf.weeklyStats).forEach(weekStat => {
+                if (weekStat.processes && !(weekStat.processes instanceof Set)) {
+                  // Convert back to Set if it was serialized as array or object
+                  weekStat.processes = new Set(Array.isArray(weekStat.processes) ? weekStat.processes : Object.keys(weekStat.processes));
+                }
+              });
+            }
+          });
+          
           console.debug('[Analytics] Loaded analytics data from localStorage');
         }
       } catch (error) {
@@ -2628,7 +2656,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function makeDropTarget(container, key){
     // container is the element that will receive dropped badges (.path-box or #unassignedStack)
-    container.addEventListener('dragover', (e) => { e.preventDefault(); container.classList && container.classList.add('ring','ring-indigo-300'); });
+    container.addEventListener('dragover', (e) => { 
+      e.preventDefault(); 
+      container.classList && container.classList.add('ring','ring-indigo-300');
+      console.log(`[DEBUG] Drag over target: ${key}`);
+    });
     container.addEventListener('dragleave', () => { container.classList && container.classList.remove('ring','ring-indigo-300'); });
     container.addEventListener('drop', (e) => {
       e.preventDefault(); container.classList && container.classList.remove('ring','ring-indigo-300');
@@ -2640,9 +2672,14 @@ document.addEventListener('DOMContentLoaded', () => {
         isOverride = true;
       }
       const payload = e.dataTransfer.getData('text/plain');
-      if (!payload) return;
+      console.log(`[DEBUG] Drop payload: "${payload}"`);
+      if (!payload) {
+        console.log('[DEBUG] No payload found in drop event');
+        return;
+      }
       // payload may be employee id (preferred) or DOM id
       let node = document.getElementById(payload) || document.querySelector(`.badge[data-id="${payload}"]`);
+      console.log(`[DEBUG] Found node:`, node);
       let badgeId = node && node.id;
       // if no DOM badge exists yet, try to find the badge in STATE by eid and create a badge node
       if (!node){
@@ -2654,8 +2691,14 @@ document.addEventListener('DOMContentLoaded', () => {
           document.body.appendChild(node);
         }
       }
-      if (!node) return; // unknown drag payload
-      if (!badgeId || !STATE.badges[badgeId]) return;
+      if (!node) {
+        console.log('[DEBUG] No node found for payload:', payload);
+        return; // unknown drag payload
+      }
+      if (!badgeId || !STATE.badges[badgeId]) {
+        console.log('[DEBUG] Invalid badgeId or missing badge:', badgeId, !!STATE.badges[badgeId]);
+        return;
+      }
       
       // Track assignment change for analytics
       const oldLocation = STATE.badges[badgeId].loc;
@@ -2878,7 +2921,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // drag payload uses employee id when possible
     wrap.addEventListener('dragstart', (e) => {
       const emp = String(p.eid || p.id || '');
-      try{ e.dataTransfer.setData('text/plain', emp); }catch(_){ e.dataTransfer.setData('text/plain', p.id); }
+      console.log(`[DEBUG] Drag started for badge ${p.name} (${emp})`);
+      console.log(`[DEBUG] Badge data:`, { id: p.id, eid: p.eid, name: p.name, loc: p.loc });
+      try{ 
+        e.dataTransfer.setData('text/plain', emp);
+        console.log(`[DEBUG] Set drag payload: "${emp}"`);
+      }catch(err){ 
+        console.log(`[DEBUG] Drag error:`, err);
+        e.dataTransfer.setData('text/plain', p.id); 
+      }
       try{
         const crt = wrap.cloneNode(true);
         crt.style.opacity = '0.9'; crt.style.position = 'absolute'; crt.style.top = '-9999px';
