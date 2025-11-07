@@ -1476,8 +1476,8 @@ document.addEventListener('DOMContentLoaded', () => {
           nextRecommendations: {}
         };
 
-        // Capture current assignments snapshot into quarterAssignments as well
-        STATE.quarterAssignments[q] = {};
+        // Capture current assignments snapshot into quarterAssignments (preserve existing)
+        STATE.quarterAssignments[q] = STATE.quarterAssignments[q] || {};
         Object.values(STATE.badges).forEach(badge => {
           STATE.quarterAssignments[q][badge.id] = badge.loc;
           if (badge.loc !== 'unassigned') {
@@ -2565,8 +2565,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load saved quarter snapshots if available
   try{
     const qa = localStorage.getItem('vlab:quarterAssignments');
-    if (qa){ const parsed = JSON.parse(qa); if (parsed && typeof parsed === 'object') STATE.quarterAssignments = Object.assign({Q1:{},Q2:{},Q3:{}}, parsed); }
-  }catch(_){ }
+    if (qa){ 
+      const parsed = JSON.parse(qa); 
+      if (parsed && typeof parsed === 'object') {
+        STATE.quarterAssignments = Object.assign({Q1:{},Q2:{},Q3:{}}, parsed);
+        console.log('[QUARTER] Loaded quarter assignments from localStorage:', Object.keys(STATE.quarterAssignments).map(q => `${q}:${Object.keys(STATE.quarterAssignments[q]).length}`));
+      }
+    }
+  }catch(e){ 
+    console.warn('[QUARTER] Failed to load quarter assignments:', e);
+  }
   
   // Auto-load last roster and assignments on page refresh
   function autoLoadLastRoster() {
@@ -2931,6 +2939,74 @@ document.addEventListener('DOMContentLoaded', () => {
     console.groupEnd();
   };
 
+  // Debug quarter assignment issues
+  window.debugQuarterAssignments = function() {
+    console.group('📊 Quarter Assignment Debug');
+    
+    console.log('Current quarter:', STATE.currentQuarter);
+    console.log('Quarter assignments:', STATE.quarterAssignments);
+    console.log('Quarter locks:', STATE.quarterLocks);
+    
+    // Check localStorage
+    const saved = localStorage.getItem('vlab:quarterAssignments');
+    if (saved) {
+      console.log('Saved quarter assignments:', JSON.parse(saved));
+    }
+    
+    // Check analytics history per quarter
+    const historyByQuarter = {};
+    STATE.analytics.history.forEach(entry => {
+      const q = entry.quarter || 'Unknown';
+      if (!historyByQuarter[q]) historyByQuarter[q] = [];
+      historyByQuarter[q].push(entry);
+    });
+    
+    console.log('Analytics history by quarter:');
+    Object.keys(historyByQuarter).forEach(quarter => {
+      console.log(`  ${quarter}: ${historyByQuarter[quarter].length} entries`);
+    });
+    
+    // Check for duplicates
+    const duplicates = STATE.analytics.history.filter((entry, index, array) => {
+      return array.findIndex(e => 
+        e.badgeId === entry.badgeId && 
+        e.toLocation === entry.toLocation && 
+        Math.abs(new Date(e.timestamp) - new Date(entry.timestamp)) < 1000
+      ) !== index;
+    });
+    
+    console.log(`Found ${duplicates.length} potential duplicates in analytics`);
+    
+    console.groupEnd();
+  };
+
+  // Clean up quarter assignment data
+  window.fixQuarterAssignments = function() {
+    console.log('🔧 Fixing quarter assignment data...');
+    
+    // Remove duplicates from analytics
+    const uniqueHistory = [];
+    const seen = new Set();
+    
+    STATE.analytics.history.forEach(entry => {
+      const key = `${entry.badgeId}-${entry.toLocation}-${entry.timestamp}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueHistory.push(entry);
+      }
+    });
+    
+    const removedDuplicates = STATE.analytics.history.length - uniqueHistory.length;
+    STATE.analytics.history = uniqueHistory;
+    
+    // Save cleaned data
+    ANALYTICS.saveAnalyticsData();
+    localStorage.setItem('vlab:quarterAssignments', JSON.stringify(STATE.quarterAssignments));
+    
+    console.log(`✅ Removed ${removedDuplicates} duplicates from analytics history`);
+    console.log('✅ Saved cleaned quarter assignments');
+  };
+
   // Test YDD4 assignment persistence specifically
   window.testYDD4Persistence = function() {
     console.group('🧪 YDD4 Assignment Persistence Test');
@@ -3278,6 +3354,8 @@ document.addEventListener('DOMContentLoaded', () => {
       try{
         STATE.quarterAssignments[STATE.currentQuarter] = STATE.quarterAssignments[STATE.currentQuarter] || {};
         STATE.quarterAssignments[STATE.currentQuarter][badgeId] = newLocation;
+        // Save quarter assignments to localStorage immediately
+        localStorage.setItem('vlab:quarterAssignments', JSON.stringify(STATE.quarterAssignments));
       }catch(_){ }
       
       // Log the assignment (override when applicable)
@@ -3912,8 +3990,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       
       renderAllBadges();
-      // Snapshot initial quarter state (all current locs)
-      try{ STATE.quarterAssignments[STATE.currentQuarter] = {}; Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[STATE.currentQuarter][b.id] = b.loc; }); }catch(_){ }
+      // Snapshot initial quarter state (preserve existing assignments)
+      try{ 
+        STATE.quarterAssignments[STATE.currentQuarter] = STATE.quarterAssignments[STATE.currentQuarter] || {}; 
+        Object.values(STATE.badges).forEach(b => { 
+          STATE.quarterAssignments[STATE.currentQuarter][b.id] = b.loc; 
+        }); 
+      }catch(_){ }
       setupVPH(plannedHC);
       
       // Show site-specific summary in output
@@ -4044,9 +4127,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function snapshotCurrentQuarter(){
     const q = STATE.currentQuarter || 'Q1';
-    STATE.quarterAssignments[q] = {};
+    // Preserve existing assignments, don't wipe them
+    STATE.quarterAssignments[q] = STATE.quarterAssignments[q] || {};
     Object.values(STATE.badges).forEach(b => { STATE.quarterAssignments[q][b.id] = b.loc; });
     try{ localStorage.setItem('vlab:quarterAssignments', JSON.stringify(STATE.quarterAssignments)); }catch(_){ }
+    console.log(`[QUARTER] Snapshotted current quarter ${q} with ${Object.keys(STATE.quarterAssignments[q]).length} assignments`);
   }
 
   function applyQuarterAssignments(q){
@@ -4060,7 +4145,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Simple round-robin rotation across process ring
     const prevSnap = STATE.quarterAssignments[prevQ] || null;
     if (!prevSnap) { snapshotCurrentQuarter(); return; }
-    STATE.quarterAssignments[newQ] = {};
+    // Preserve existing assignments in new quarter, don't wipe them
+    STATE.quarterAssignments[newQ] = STATE.quarterAssignments[newQ] || {};
     Object.entries(prevSnap).forEach(([bid, prevLoc]) => {
       if (!STATE.badges[bid]) return;
       if (prevLoc && prevLoc !== 'unassigned'){
@@ -4113,6 +4199,11 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Load content for the selected tab
       loadAnalyticsContent(tabName);
+      
+      // Set up quarter filter for assignments tab
+      if (tabName === 'assignments') {
+        setTimeout(setupQuarterFilter, 50);
+      }
     });
   });
 
@@ -4121,6 +4212,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAnalyticsContent('overview'); // Load initial content
     // Focus search for quick access
     analyticsSearchInput && analyticsSearchInput.focus();
+    // Set up quarter filter after content loads
+    setTimeout(setupQuarterFilter, 100);
   }
 
   function closeAnalytics() {
@@ -4311,7 +4404,10 @@ document.addEventListener('DOMContentLoaded', () => {
         loadPerformanceContent();
         break;
       case 'assignments':
-        loadAssignmentsContent();
+        // Check if quarter filter exists and use its value
+        const quarterFilter = document.getElementById('quarterFilter');
+        const selectedQuarter = quarterFilter ? quarterFilter.value : 'all';
+        loadAssignmentsContent(selectedQuarter);
         break;
       case 'rotation':
         loadRotationContent();
@@ -4480,10 +4576,14 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  function loadAssignmentsContent() {
+  function loadAssignmentsContent(selectedQuarter = null) {
     const assignmentHistory = document.getElementById('assignmentHistory');
     const assignmentPatterns = document.getElementById('assignmentPatterns');
     const assignmentRecommendations = document.getElementById('assignmentRecommendations');
+    
+    // Get selected quarter from filter dropdown
+    const quarterFilter = document.getElementById('quarterFilter');
+    const filterQuarter = selectedQuarter || (quarterFilter ? quarterFilter.value : 'all');
 
     // Current Assignments Across All Sites
     let currentAssignmentsHTML = '<h4>Current Assignments by Site</h4>';
@@ -4521,12 +4621,41 @@ document.addEventListener('DOMContentLoaded', () => {
       currentAssignmentsHTML += '</div>';
     });
 
-    // Recent Assignment History (Last 20)
-    const recentHistory = STATE.analytics.history.slice(-20).reverse();
-    const historyHTML = recentHistory.map(entry => `
+    // Filter assignment history by quarter
+    let filteredHistory = STATE.analytics.history;
+    if (filterQuarter !== 'all') {
+      filteredHistory = STATE.analytics.history.filter(entry => entry.quarter === filterQuarter);
+    }
+    
+    // Take last 50 assignments (or all if filtered by quarter) and reverse for newest first
+    const displayHistory = filterQuarter === 'all' ? filteredHistory.slice(-50).reverse() : filteredHistory.reverse();
+    
+    // Create quarter summary with statistics
+    const quarterStats = {};
+    STATE.analytics.history.forEach(entry => {
+      const q = entry.quarter || 'Q1';
+      quarterStats[q] = (quarterStats[q] || 0) + 1;
+    });
+    
+    const quarterSummary = filterQuarter === 'all' ? 
+      'Showing recent assignments from all quarters' :
+      `Showing all assignments from ${filterQuarter} (${displayHistory.length} total)`;
+    
+    const statsHTML = filterQuarter === 'all' ? 
+      `<div class="text-sm text-gray-600 mt-2">Quarter breakdown: ${Object.entries(quarterStats).map(([q, count]) => `${q}: ${count}`).join(', ')}</div>` :
+      '';
+    
+    const historyHTML = `
+      <div class="quarter-summary mb-4 p-3 bg-gray-50 rounded border">
+        <strong>${quarterSummary}</strong>
+        ${filterQuarter !== 'all' ? `<div class="text-sm text-gray-600 mt-1">Filter: ${filterQuarter} assignments only</div>` : ''}
+        ${statsHTML}
+      </div>
+    ` + displayHistory.map(entry => `
       <div class="history-item">
         <div class="history-timestamp">${new Date(entry.timestamp).toLocaleString()}</div>
         <div class="history-action">
+          <span class="quarter-badge bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">${entry.quarter || 'Q1'}</span>
           <span class="site-badge site-${(entry.site||'').toLowerCase()}">${entry.site || 'N/A'}</span>
           ${entry.employeeName} ${entry.action === 'assign' ? 'assigned to' : 
             entry.action === 'unassign' ? 'unassigned from' : 'moved to'} 
@@ -4843,6 +4972,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // Event listeners for analytics
   analyticsBtn?.addEventListener('click', openAnalytics);
   closeAnalyticsBtn?.addEventListener('click', closeAnalytics);
+
+  // Quarter filter event listener
+  function setupQuarterFilter() {
+    const quarterFilter = document.getElementById('quarterFilter');
+    if (quarterFilter) {
+      // Set current quarter as default if not already set
+      if (!quarterFilter.value || quarterFilter.value === 'all') {
+        quarterFilter.value = STATE.currentQuarter || 'Q1';
+      }
+      
+      // Remove existing listener to prevent duplicates
+      quarterFilter.replaceWith(quarterFilter.cloneNode(true));
+      const newQuarterFilter = document.getElementById('quarterFilter');
+      
+      newQuarterFilter.addEventListener('change', (e) => {
+        const selectedQuarter = e.target.value;
+        console.log(`[Analytics] Quarter filter changed to: ${selectedQuarter}`);
+        loadAssignmentsContent(selectedQuarter);
+      });
+      
+      console.log(`[Analytics] Quarter filter setup complete, current selection: ${newQuarterFilter.value}`);
+    }
+  }
+
+  // Quarter filter setup is now handled in the main openAnalytics function
 
   // Enhanced export analytics with multiple formats
   exportAnalyticsBtn?.addEventListener('click', () => {

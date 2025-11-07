@@ -314,7 +314,18 @@
       <div id="tab-assignments" class="analytics-tab-content hidden">
         <div class="analytics-grid">
           <div class="analytics-card full-width">
-            <h3>Recent Assignment History</h3>
+            <div class="flex items-center justify-between mb-4">
+              <h3>Assignment History</h3>
+              <div class="flex items-center gap-2">
+                <label for="quarterFilter" class="text-sm font-medium">Quarter:</label>
+                <select id="quarterFilter" class="border rounded px-2 py-1 text-sm">
+                  <option value="all">All Quarters</option>
+                  <option value="Q1">Q1</option>
+                  <option value="Q2">Q2</option>
+                  <option value="Q3">Q3</option>
+                </select>
+              </div>
+            </div>
             <div id="assignmentHistory" class="analytics-content">
               <p>Loading assignment history...</p>
             </div>
