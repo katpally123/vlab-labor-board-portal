@@ -119,6 +119,12 @@
       <button type="submit" class="bg-gray-900 text-white font-semibold rounded px-6 py-2">Build Board</button>
       <button type="button" id="loadLastBtn" class="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700">Load last roster</button>
       <button type="button" id="clearSavedBtn" class="border border-red-300 text-red-600 hover:bg-red-50 rounded px-3 py-2 text-sm text-gray-700">Clear Board</button>
+      
+      <!-- Assignment History Controls -->
+      <div class="flex gap-1 ml-4">
+        <button type="button" id="undoBtn" class="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-50" title="Undo last assignment (Ctrl+Z)">↶ Undo</button>
+        <button type="button" id="redoBtn" class="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-50" title="Redo assignment (Ctrl+Y)">↷ Redo</button>
+      </div>
     </form>
 
     <!-- Summary row (7 columns) -->
@@ -138,6 +144,46 @@
     <!-- Layout: left Unassigned sidebar + right board grid -->
     <div class="flex gap-4 mt-4">
       <aside id="leftPanel" class="w-64 bg-white border border-gray-200 rounded-xl p-3 h-[72vh] overflow-auto">
+        <!-- Filter Controls -->
+        <div id="filterControls" class="filter-controls">
+          <div class="filter-row">
+            <div class="filter-group">
+              <label class="filter-label">Search</label>
+              <input type="text" id="nameFilter" class="filter-input" placeholder="Name or ID...">
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-group">
+              <label class="filter-label">Dept</label>
+              <select id="deptFilter" class="filter-input">
+                <option value="">All</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Shift</label>
+              <select id="shiftFilter" class="filter-input">
+                <option value="">All</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-row">
+            <button id="clearFilters" class="filter-clear">Clear</button>
+          </div>
+        </div>
+
+        <!-- Bulk Actions -->
+        <div id="bulkActions" class="bulk-actions">
+          <div class="bulk-actions-controls">
+            <span class="selected-count">0 selected</span>
+            <button id="selectAllBtn" class="bulk-action-btn">Select All</button>
+            <button id="clearSelectionBtn" class="bulk-action-btn">Clear</button>
+            <select id="bulkAssignTarget" class="filter-input" style="min-width: 100px;">
+              <option value="">Assign to...</option>
+            </select>
+            <button id="bulkAssignBtn" class="bulk-action-btn">Assign</button>
+          </div>
+        </div>
+
         <div class="flex items-center justify-between mb-2">
             <h2 class="text-sm font-semibold">Unassigned</h2>
             <div class="flex items-center gap-2">
@@ -396,5 +442,9 @@
 
   <!-- Exit Publish button (placed outside header so it's visible in published mode) -->
   <button id="exitPublishBtn" class="border border-red-600 text-red-600 bg-white hover:bg-red-50 rounded px-3 py-1 text-sm font-semibold hidden">Exit Publish</button>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
 </body>
 </html>
