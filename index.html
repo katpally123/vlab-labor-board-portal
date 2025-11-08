@@ -102,23 +102,11 @@
       <div class="flex flex-col space-y-1">
         <label class="block font-semibold mb-1 text-sm">Uploads (one line)</label>
         <div id="fileZone" class="flex gap-1 flex-wrap">
-          <label class="pill-label">Roster
+          <label class="pill-label">Roster File
             <input type="file" id="roster" name="roster" accept=".csv" class="hidden">
             <span class="ml-2 file-label" id="label-roster"></span>
           </label>
-          <label class="pill-label">Swaps
-            <input type="file" id="swap" name="swap" accept=".csv" class="hidden">
-            <span class="ml-2 file-label" id="label-swap"></span>
-          </label>
-          <label class="pill-label">VET/VTO
-            <input type="file" id="vetvto" name="vetvto" accept=".csv" class="hidden">
-            <span class="ml-2 file-label" id="label-vetvto"></span>
-          </label>
-          <label class="pill-label">LaborShare
-            <input type="file" id="laborshare" name="laborshare" accept=".csv" class="hidden">
-            <span class="ml-2 file-label" id="label-laborshare"></span>
-          </label>
-          <label class="pill-label">Upload
+          <label class="pill-label">Additional Roster
             <input type="file" id="missing" name="missing" accept=".csv" class="hidden">
             <span class="ml-2 file-label" id="label-missing"></span>
           </label>
@@ -200,7 +188,7 @@
 
   <script>
     // Show file names
-    ['roster','swap','vetvto','laborshare','missing'].forEach(function(id) {
+    ['roster','missing'].forEach(function(id) {
       const input = document.getElementById(id);
       const label = document.getElementById('label-'+id);
       if (!input) return;
@@ -216,9 +204,9 @@
 
     // Download Upload Template - Same format as roster with 2 examples
     document.getElementById('downloadTemplateBtn')?.addEventListener('click', () => {
-      const templateData = `Employee ID,Employee Name,Employee Status,Shift Pattern,Department ID,Management Area ID
-98765,Mike Wilson,Active,DA,1299020,21
-54321,Sarah Johnson,Active,DB,1211010,22`;
+      const templateData = `Employee ID	User ID	Employee Name	Badge Barcode ID	Department ID	Employment Start Date	Employment Type	Employee Status	Manager Name	Management Area ID	Shift Pattern
+110888249	qruchikr	Ruchika,Ruchika	13966332	1299020	Wed Sep 22 00:00:00 UTC 2021	AMZN	Active	Bhatt,Devashish	3	DA6C0700
+204374752	ipanidhi	Patel,Nidhi	11300296	1211070	Tue Jun 10 00:00:00 UTC 2025	TEMP	Active	Gray,Torii	22	NL6C1930`;
       
       const blob = new Blob([templateData], { type: 'text/csv' });
       const a = document.createElement('a');

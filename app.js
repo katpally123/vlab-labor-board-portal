@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   
+  console.log('[DEBUG] Form and output elements found successfully');
+  console.log('[DEBUG] Form has roster input:', !!form.roster);
+  console.log('[DEBUG] Form has missing input:', !!form.missing);
+  
   console.log('[DEBUG] Core elements found, continuing initialization...');
 
   // ===== Summary DOM refs =====
@@ -581,14 +585,15 @@ document.addEventListener('DOMContentLoaded', () => {
     badgeBelongsToSite: function(badge, targetSite) {
       const badgeSite = badge.site; // This is the classified site from when badge was created
       
-      // YHM2 is separate - only YHM2 badges show in YHM2
+      // YHM2 is separate - only YHM2 badges show in YHM2  
       if (targetSite === 'YHM2') {
         return badgeSite === 'YHM2';
       }
       
-      // YDD2 and YDD4 share the same associate pool but have separate assignments
+      // YDD2 and YDD4 share the same associate pool (YDD_SHARED badges can appear in both)
+      // but have separate assignments
       if (targetSite === 'YDD2' || targetSite === 'YDD4') {
-        return badgeSite === 'YDD2' || badgeSite === 'YDD4';
+        return badgeSite === 'YDD2' || badgeSite === 'YDD4' || badgeSite === 'YDD_SHARED';
       }
       
       // Exact match for other sites
@@ -3106,20 +3111,27 @@ document.addEventListener('DOMContentLoaded', () => {
   function classifySite(row){
     const d = toNum(row['Department ID'] ?? row.DepartmentID ?? row['Dept ID']);
     const a = toNum(row['Management Area ID'] ?? row.ManagementAreaID);
+    const shiftPattern = String(row['Shift Pattern'] || '').trim().toUpperCase();
     
     if (isFinite(d)){
-      // YHM2 associates (specific department IDs)
-      if ([1211010,1211020,1299010,1299020].includes(d)) return 'YHM2';
-      if ([1211030,1211040,1299030,1299040].includes(d)) return 'YHM2';
+      // YHM2 associates - inbound and DA shift patterns
+      if (shiftPattern.startsWith('DA') || shiftPattern.includes('INBOUND')) {
+        return 'YHM2';
+      }
       
-      // YDD2/YDD4 associates (shared pool - both sites use the same associates)
-      if ([1211070,1299070].includes(d) && a === 22) return 'YDD2';
-      if ([1211080,1299080].includes(d) && a === 24) return 'YDD4';
-      
-      // Additional YDD site patterns (if any other dept IDs should be included)
-      // Both YDD2 and YDD4 can access associates from either classification
+      // YDD2/YDD4 associates share the same department IDs
+      // Classification will be based on site selection rather than department ID
+      // since they have the same department IDs but different operations
+      if ([1211010,1211020,1211030,1211040,1211070,1211080].includes(d) || 
+          [1299010,1299020,1299030,1299040,1299070,1299080].includes(d)) {
+        // Return 'YDD_SHARED' to indicate these can be used by both YDD2 and YDD4
+        // The actual site assignment will be determined by the selected site
+        return 'YDD_SHARED';
+      }
     }
-    return 'Other';
+    
+    // Default to YHM2 for any other associates
+    return 'YHM2';
   }
 
   function shiftCodeOf(v){ if (!v) return ''; const s = String(v).trim(); return s.slice(0,2).toUpperCase(); }
@@ -3776,17 +3788,16 @@ document.addEventListener('DOMContentLoaded', () => {
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     console.log('[DEBUG] Form submission started');
+    console.log('[DEBUG] Form element:', form);
+    console.log('[DEBUG] Form files - roster:', form.roster?.files, 'missing:', form.missing?.files);
     output.textContent = 'Processing files…';
 
     const rosterFile = form.roster.files[0];
-    const swapFile = form.swap.files[0] || null;
-    const vetFile = form.vetvto.files[0] || null;
-    const lsFile = form.laborshare.files[0] || null;
     const missingFile = form.missing.files[0] || null;
     
-    // Allow upload-only processing or require roster + upload
+    // Allow upload-only processing or require roster + additional roster
     if (!rosterFile && !missingFile){ 
-      output.textContent = 'Please select at least a Roster file or Upload file to proceed.'; 
+      output.textContent = 'Please select at least a Roster File or Additional Roster file to proceed.'; 
       console.warn('[DEBUG] No files selected');
       return; 
     }
@@ -3805,22 +3816,16 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('[DEBUG] Starting CSV parsing...');
     console.log('[DEBUG] Files to parse:', {
       roster: rosterFile?.name,
-      swap: swapFile?.name,
-      vet: vetFile?.name,
-      labor: lsFile?.name,
-      upload: missingFile?.name
+      additional: missingFile?.name
     });
     
     Promise.all([
       rosterFile ? parseCsv(rosterFile).catch(err => { console.error('[DEBUG] Roster parsing error:', err); return []; }) : Promise.resolve([]),
-      swapFile ? parseCsv(swapFile).catch(err => { console.error('[DEBUG] Swap parsing error:', err); return []; }) : Promise.resolve([]),
-      vetFile ? parseCsv(vetFile).catch(err => { console.error('[DEBUG] VET parsing error:', err); return []; }) : Promise.resolve([]),
-      lsFile ? parseCsv(lsFile).catch(err => { console.error('[DEBUG] Labor share parsing error:', err); return []; }) : Promise.resolve([]),
-      missingFile ? parseCsv(missingFile).catch(err => { console.error('[DEBUG] Upload file parsing error:', err); return []; }) : Promise.resolve([]),
-    ]).then(([roster, swaps, vetvto, labshare, missing]) => {
+      missingFile ? parseCsv(missingFile).catch(err => { console.error('[DEBUG] Additional roster parsing error:', err); return []; }) : Promise.resolve([]),
+    ]).then(([roster, additional]) => {
       console.debug('[build] rosterFile=', rosterFile && rosterFile.name, 'size=', rosterFile && rosterFile.size);
       console.debug('[build] parsed roster rows=', Array.isArray(roster) ? roster.length : typeof roster, roster && roster[0]);
-      console.debug('[DEBUG] Upload file parsed:', Array.isArray(missing) ? missing.length : typeof missing, missing && missing[0]);
+      console.debug('[DEBUG] Additional roster parsed:', Array.isArray(additional) ? additional.length : typeof additional, additional && additional[0]);
   const siteSel = form.site.value;
   const quarterSel = (quarterSelect && quarterSelect.value) || 'Q1';
       
@@ -3842,26 +3847,28 @@ document.addEventListener('DOMContentLoaded', () => {
       if (allowed.size){ codesBar.classList.remove('hidden'); codesBar.textContent = `Codes active for ${dayNames[dow]} (${elShift.textContent}): ${[...allowed].sort().join(', ')}`; }
       else { codesBar.classList.add('hidden'); codesBar.textContent = ''; }
 
-      // Process uploaded associates and merge with roster
+      // Process additional roster associates and merge with main roster
       let combinedRoster = Array.isArray(roster) ? [...roster] : [];
-      const uploadedEmployeeIds = new Set(); // Track which employees came from upload
+      const uploadedEmployeeIds = new Set(); // Track which employees came from additional file
       
       console.log(`[DEBUG] Initial roster size: ${combinedRoster.length}`);
-      console.log(`[DEBUG] Upload file data:`, missing);
+      console.log(`[DEBUG] Additional roster data:`, additional);
       
-      if (Array.isArray(missing) && missing.length > 0) {
-        console.log(`[DEBUG] Processing ${missing.length} uploaded associates`);
+      if (Array.isArray(additional) && additional.length > 0) {
+        console.log(`[DEBUG] Processing ${additional.length} additional associates`);
         
-        // Add uploaded associates to the roster with normalized headers
-        missing.forEach(missingPerson => {
+        // Add additional associates to the roster with normalized headers
+        additional.forEach(additionalPerson => {
           // Use same format as roster - simple normalization
           const normalizedPerson = {
-            'Employee ID': missingPerson['Employee ID'] || missingPerson['ID'] || missingPerson['EID'] || '',
-            'Employee Name': missingPerson['Employee Name'] || missingPerson['Name'] || missingPerson['Full Name'] || '',
-            'Employee Status': missingPerson['Employee Status'] || missingPerson['Status'] || 'Active',
-            'Shift Pattern': missingPerson['Shift Pattern'] || missingPerson['ShiftCode'] || missingPerson['Shift Code'] || missingPerson['Shift'] || '',
-            'Department ID': missingPerson['Department ID'] || missingPerson['DepartmentID'] || missingPerson['Dept ID'] || '',
-            'Management Area ID': missingPerson['Management Area ID'] || missingPerson['ManagementAreaID'] || '',
+            'Employee ID': additionalPerson['Employee ID'] || additionalPerson['ID'] || additionalPerson['EID'] || '',
+            'Employee Name': additionalPerson['Employee Name'] || additionalPerson['Name'] || additionalPerson['Full Name'] || '',
+            'Employee Status': additionalPerson['Employee Status'] || additionalPerson['Status'] || 'Active',
+            'Shift Pattern': additionalPerson['Shift Pattern'] || additionalPerson['ShiftCode'] || additionalPerson['Shift Code'] || additionalPerson['Shift'] || '',
+            'Department ID': additionalPerson['Department ID'] || additionalPerson['DepartmentID'] || additionalPerson['Dept ID'] || '',
+            'Management Area ID': additionalPerson['Management Area ID'] || additionalPerson['ManagementAreaID'] || '',
+            'User ID': additionalPerson['User ID'] || additionalPerson['UserID'] || '',
+            'Badge Barcode ID': additionalPerson['Badge Barcode ID'] || additionalPerson['Barcode'] || '',
             '_isUploaded': true // Mark as uploaded
           };
           
@@ -3915,7 +3922,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Site filtering: YHM2 is separate, YDD2/YDD4 share associate pool
         if (siteSel === 'YHM2' && site !== 'YHM2') return false;
-        if ((siteSel === 'YDD2' || siteSel === 'YDD4') && (site !== 'YDD2' && site !== 'YDD4')) return false;
+        if ((siteSel === 'YDD2' || siteSel === 'YDD4') && (site !== 'YHM2' && site !== 'YDD_SHARED')) return false;
         if (!allowed.has(sc)) return false;
         if (shiftSel === 'day' && !DAY_SET.has(sc)) return false;
         if (shiftSel === 'night' && !NIGHT_SET.has(sc)) return false;
@@ -3969,12 +3976,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const eid  = String(r['Employee ID'] ?? r['ID'] ?? r['EID'] ?? r['Employee Number'] ?? '').trim();
         const sc   = shiftCodeOf(r['Shift Pattern'] ?? r['ShiftCode'] ?? r['Shift Code'] ?? r['Shift'] ?? r['Pattern']);
         const classifiedSite = classifySite(r); // Get the actual classified site for this associate
-        const barcode = String(r['Barcode'] ?? r['Badge'] ?? r['Employee Login'] ?? r['Username'] ?? '').trim();
-        const handle = String(r['Handle'] ?? r['Employee Handle'] ?? r['Login'] ?? '').trim();
+        
+        // For YDD_SHARED associates, assign them to the currently selected site (YDD2 or YDD4)
+        const actualSite = classifiedSite === 'YDD_SHARED' ? siteSel : classifiedSite;
+        
+        const barcode = String(r['Badge Barcode ID'] ?? r['Barcode'] ?? r['Badge'] ?? r['Employee Login'] ?? r['Username'] ?? '').trim();
+        const handle = String(r['User ID'] ?? r['Handle'] ?? r['Employee Handle'] ?? r['Login'] ?? '').trim();
         const photo = String(r['Photo'] ?? r['Photo URL'] ?? r['Image'] ?? '').trim();
         const id   = `b_${eid || idx}_${Math.random().toString(36).slice(2,8)}`;
         const isUploaded = r['_isUploaded'] === true; // Check if this came from upload
-        STATE.badges[id] = { id, name, eid, scode: sc, site: classifiedSite, present:false, loc:'unassigned', barcode, handle, photo, isUploaded };
+        STATE.badges[id] = { id, name, eid, scode: sc, site: actualSite, present:false, loc:'unassigned', barcode, handle, photo, isUploaded };
       });
 
       if (Object.keys(STATE.badges).length === 0){
@@ -4001,16 +4012,16 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Show site-specific summary in output
       const siteMessage = `✅ Loaded ${baseHC} associates for ${siteSel}` + 
-        (uploadedInFiltered > 0 ? ` (${uploadedInFiltered} from upload file)` : '');
+        (uploadedInFiltered > 0 ? ` (${uploadedInFiltered} from additional roster)` : '');
       output.innerHTML = `<div style="color: #059669; font-weight: 500;">${siteMessage}</div>`;
       
       console.log('[BUILD-COMPLETE] Board ready with site-filtered associates');
 
       // Start analytics session
       ANALYTICS.endSession(); // End any existing session
-      const missingCount = missing.length || 0;
-      const sessionNotes = missingCount > 0 
-        ? `Roster: ${rosterFile.name} + ${missingCount} uploaded associates, Badges: ${Object.keys(STATE.badges).length}`
+      const additionalCount = additional.length || 0;
+      const sessionNotes = additionalCount > 0 
+        ? `Roster: ${rosterFile.name} + ${additionalCount} additional associates, Badges: ${Object.keys(STATE.badges).length}`
         : `Roster: ${rosterFile.name}, Badges: ${Object.keys(STATE.badges).length}`;
         
       ANALYTICS.startSession({
@@ -5809,5 +5820,41 @@ setTimeout(() => {
     }
   }, 3000);
 }, 1000);
+
+  // Add debugging functions to window for console access
+  window.debugUpload = function() {
+    const form = document.getElementById('laborForm');
+    const rosterInput = document.getElementById('roster');
+    const missingInput = document.getElementById('missing');
+    
+    console.log('=== UPLOAD DEBUG INFO ===');
+    console.log('Form element:', form);
+    console.log('Roster input:', rosterInput);
+    console.log('Roster files:', rosterInput?.files);
+    console.log('Missing input:', missingInput);
+    console.log('Missing files:', missingInput?.files);
+    console.log('Papa Parse available:', typeof Papa !== 'undefined');
+    console.log('==========================');
+    
+    if (rosterInput?.files?.length > 0) {
+      console.log('Roster file details:', {
+        name: rosterInput.files[0].name,
+        size: rosterInput.files[0].size,
+        type: rosterInput.files[0].type,
+        lastModified: new Date(rosterInput.files[0].lastModified)
+      });
+    }
+  };
+  
+  window.testFormSubmission = function() {
+    const form = document.getElementById('laborForm');
+    if (form) {
+      console.log('Triggering form submission manually...');
+      const submitEvent = new Event('submit');
+      form.dispatchEvent(submitEvent);
+    } else {
+      console.error('Form not found!');
+    }
+  };
 
 }); // End of DOMContentLoaded
