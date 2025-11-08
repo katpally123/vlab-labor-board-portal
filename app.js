@@ -2895,25 +2895,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
       
-      // CRITICAL: Synchronize badge.loc with current site assignments
-      console.log('[SIMPLE-AUTO-LOAD] Synchronizing badge locations with site assignments...');
+      // MINIMAL SYNCHRONIZATION: Only sync badges that are explicitly assigned to current site
+      console.log('[SIMPLE-AUTO-LOAD] Minimal synchronization for current site only:', STATE.currentSite);
       
-      // First, reset all badges to unassigned
-      Object.values(STATE.badges).forEach(badge => {
-        if (badge.loc !== 'assigned-elsewhere' && badge.loc !== 'hidden') {
-          badge.loc = 'unassigned';
-        }
-      });
-      
-      // Then, set badge.loc based on current site assignments
+      // Step 1: Apply assignments ONLY for current site (don't touch any other badge locations)
       if (STATE.sites[STATE.currentSite] && STATE.sites[STATE.currentSite].assignments) {
         Object.entries(STATE.sites[STATE.currentSite].assignments).forEach(([badgeId, location]) => {
           if (STATE.badges[badgeId]) {
+            // Only update badges that are explicitly assigned to this site
             STATE.badges[badgeId].loc = location;
-            console.log(`[SYNC] Set badge ${badgeId} to ${location} for site ${STATE.currentSite}`);
+            console.log(`[SYNC] Restored assignment: badge ${badgeId} → ${location} for site ${STATE.currentSite}`);
           }
         });
       }
+      
+      // Step 2: ONLY mark badges as 'assigned-elsewhere' if they are visible but assigned to a different site
+      Object.values(STATE.badges).forEach(badge => {
+        if (!badge.hidden) {
+          // Check if this badge is assigned to the current site
+          const isAssignedToCurrentSite = STATE.sites[STATE.currentSite] && 
+            STATE.sites[STATE.currentSite].assignments && 
+            STATE.sites[STATE.currentSite].assignments[badge.id];
+          
+          if (!isAssignedToCurrentSite) {
+            // Check if assigned to any other site
+            const assignedToOtherSite = Object.keys(STATE.sites).find(siteCode => 
+              siteCode !== STATE.currentSite && 
+              STATE.sites[siteCode].assignments && 
+              STATE.sites[siteCode].assignments[badge.id]
+            );
+            
+            if (assignedToOtherSite) {
+              // Only change to 'assigned-elsewhere' if it's not already a valid location
+              if (badge.loc === 'unassigned' || badge.loc === 'assigned-elsewhere') {
+                badge.loc = 'assigned-elsewhere';
+                console.log(`[SYNC] Badge ${badge.id} assigned to ${assignedToOtherSite}, marking as assigned-elsewhere`);
+              }
+            } else {
+              // Only change to 'unassigned' if it's currently assigned-elsewhere
+              if (badge.loc === 'assigned-elsewhere') {
+                badge.loc = 'unassigned';
+                console.log(`[SYNC] Badge ${badge.id} no longer assigned elsewhere, marking as unassigned`);
+              }
+            }
+          }
+        }
+      });
       
       // Debug YDD4 synchronization specifically
       if (STATE.currentSite === 'YDD4') {
