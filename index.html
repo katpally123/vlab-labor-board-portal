@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Amazon VLAB | Virtual Labor Assignment Board</title>
 
   <!-- Tailwind for layout -->
@@ -22,7 +23,6 @@
       </div>
       <div class="board-title text-center flex-1">
         <div class="main-title">AMAZON VIRTUAL LABOR ASSIGNMENT BOARD</div>
-        <div class="sub-title text-sm text-gray-500">Demo 1.0</div>
       </div>
       <div class="header-blocks flex items-center gap-3">
         <div class="header-block">
@@ -44,7 +44,6 @@
         <div class="header-actions flex items-center gap-2">
           <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700">Settings</button>
           <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700" id="analyticsBtn">Analytics</button>
-          <button class="border border-green-600 text-green-600 bg-white hover:bg-green-50 rounded px-2 py-1 text-sm font-semibold" id="testAnalyticsBtn" title="Run 100 assignment test to demonstrate analytics">🧪 Test</button>
           <button class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700" id="exportLogBtn">Export Log</button>
           <button id="lockAssignmentsBtn" class="border border-orange-600 text-orange-600 bg-white hover:bg-orange-50 rounded px-3 py-1 text-sm font-semibold" title="Lock assignments and generate rotation report">🔒 Lock & Report</button>
           <button id="publishBtn" class="border border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50 rounded px-3 py-1 text-sm font-semibold">Publish</button>
@@ -58,18 +57,21 @@
     <form id="laborForm" class="bg-white rounded shadow px-6 py-4 flex flex-wrap gap-6 items-end mb-4">
       <div>
         <label for="date" class="block font-semibold mb-1 text-sm">Date</label>
-        <input type="date" id="date" name="date" class="border p-2 rounded w-40" required>
+        <input type="date" id="date" name="date" class="border p-2 rounded w-40" required 
+               title="Select the schedule date" placeholder="DD/MM/YYYY">
       </div>
 
       <div>
         <label class="block font-semibold mb-1 text-sm">Shift</label>
         <div class="flex items-center space-x-3">
           <label class="inline-flex items-center">
-            <input type="radio" name="shift" value="day" checked class="form-radio" id="shift-day">
+            <input type="radio" name="shift" value="day" checked class="form-radio" id="shift-day"
+                   title="Select day shift">
             <span class="ml-1">Day</span>
           </label>
           <label class="inline-flex items-center">
-            <input type="radio" name="shift" value="night" class="form-radio" id="shift-night">
+            <input type="radio" name="shift" value="night" class="form-radio" id="shift-night"
+                   title="Select night shift">
             <span class="ml-1">Night</span>
           </label>
         </div>
@@ -77,7 +79,8 @@
 
       <div>
         <label for="site" class="block font-semibold mb-1 text-sm">Site</label>
-        <select id="site" name="site" class="border p-2 rounded w-28" required>
+        <select id="site" name="site" class="border p-2 rounded w-28" required
+                title="Select the facility site">
           <option value="YHM2">YHM2</option>
           <option value="YDD2">YDD2</option>
           <option value="YDD4">YDD4</option>
@@ -86,7 +89,8 @@
 
       <div>
         <label for="quarter" class="block font-semibold mb-1 text-sm">Quarter</label>
-        <select id="quarter" name="quarter" class="border p-2 rounded w-28" required>
+        <select id="quarter" name="quarter" class="border p-2 rounded w-28" required
+                title="Select the quarter period">
           <option value="Q1">Q1</option>
           <option value="Q2">Q2</option>
           <option value="Q3">Q3</option>
@@ -94,31 +98,50 @@
       </div>
 
       <div>
-        <label class="block font-semibold mb-1 text-sm">Planned Volume</label>
-        <input id="plannedVolumeStub" placeholder="e.g., 52000" class="border rounded p-2 w-36" type="number" min="0">
+        <label for="plannedVolumeStub" class="block font-semibold mb-1 text-sm">Planned Volume</label>
+        <input id="plannedVolumeStub" placeholder="e.g., 52000" class="border rounded p-2 w-36" 
+               type="number" min="0" title="Enter planned volume for the shift">
       </div>
 
-      <!-- One-line uploads -->
+      <!-- File Uploads -->
       <div class="flex flex-col space-y-1">
-        <label class="block font-semibold mb-1 text-sm">Uploads (one line)</label>
+        <label class="block font-semibold mb-1 text-sm">Uploads</label>
         <div id="fileZone" class="flex gap-1 flex-wrap">
-          <label class="pill-label">Roster File
-            <input type="file" id="roster" name="roster" accept=".csv" class="hidden">
+          <label for="roster" class="pill-label">Roster File
+            <input type="file" id="roster" name="roster" accept=".csv" class="hidden"
+                   title="Upload CSV file with employee roster data">
             <span class="ml-2 file-label" id="label-roster"></span>
           </label>
-          <label class="pill-label">Additional Roster
-            <input type="file" id="missing" name="missing" accept=".csv" class="hidden">
-            <span class="ml-2 file-label" id="label-missing"></span>
+          <label for="logins" class="pill-label" style="background: #e0f2fe; border-color: #0284c7;">Daily Logins (Optional)
+            <input type="file" id="logins" name="logins" accept=".csv" class="hidden"
+                   title="Upload CSV file with daily login data to filter present associates">
+            <span class="ml-2 file-label" id="label-logins"></span>
           </label>
         </div>
         <div class="text-xs text-gray-600 mt-1">
-          <button type="button" id="downloadTemplateBtn" class="text-blue-600 hover:text-blue-800 underline">📄 Download Upload Template</button>
+          <button type="button" id="downloadTemplateBtn" class="text-blue-600 hover:text-blue-800 underline"
+                  title="Download CSV template for roster data">📄 Download Roster Template</button>
+          <span class="mx-2">•</span>
+          <button type="button" id="downloadLoginTemplateBtn" class="text-blue-600 hover:text-blue-800 underline"
+                  title="Download CSV template for login data">📄 Download Login Template</button>
         </div>
       </div>
 
-      <button type="submit" class="bg-gray-900 text-white font-semibold rounded px-6 py-2">Build Board</button>
-      <button type="button" id="loadLastBtn" class="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700">Load last roster</button>
-      <button type="button" id="clearSavedBtn" class="border border-red-300 text-red-600 hover:bg-red-50 rounded px-3 py-2 text-sm text-gray-700">Clear Board</button>
+      <!-- Roster Database Management -->
+      <div class="flex flex-col space-y-1">
+        <label class="block font-semibold mb-1 text-sm">Database</label>
+        <div class="flex gap-2 flex-wrap items-center">
+          <button type="button" id="loadFromDatabaseBtn" class="border border-blue-300 text-blue-600 hover:bg-blue-50 rounded px-3 py-1 text-xs font-medium">🔄 Load from Database</button>
+          <button type="button" id="viewDatabaseBtn" class="border border-gray-300 rounded px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">📊 View Database</button>
+          <button type="button" id="clearDatabaseBtn" class="border border-red-300 text-red-600 hover:bg-red-50 rounded px-3 py-1 text-xs">🗑️ Clear Database</button>
+          <span id="databaseStatus" class="text-xs text-gray-500">Database: Not loaded</span>
+        </div>
+        <div class="text-xs text-gray-500 mt-1">
+          Use "Load from Database" to work with existing 499 employees, or upload new roster to update database
+        </div>
+      </div>
+
+      <button type="submit" class="bg-blue-600 text-white font-semibold rounded px-6 py-2">📋 Build Schedule Board</button>
       
       <!-- Assignment History Controls -->
       <div class="flex gap-1 ml-4">
@@ -184,8 +207,53 @@
           </div>
         </div>
 
+        <!-- Smart Assignment Tools -->
+        <div id="smartAssignmentTools" class="smart-assignment-tools">
+          <h3 class="smart-tools-title">Smart Assignment</h3>
+          
+          <!-- Auto Assignment -->
+          <div class="smart-tool-group">
+            <button id="autoAssignBtn" class="smart-tool-btn auto-assign">
+              🤖 Auto-Assign All
+            </button>
+            <p class="smart-tool-desc">Automatically assign all unassigned associates based on capacity and skills</p>
+          </div>
+          
+          <!-- Quick Selection Tools -->
+          <div class="smart-tool-group">
+            <label class="smart-tool-label">Quick Select:</label>
+            <div class="quick-select-buttons">
+              <button id="selectByShiftBtn" class="quick-select-btn">By Shift</button>
+              <button id="selectByDeptBtn" class="quick-select-btn">By Dept</button>
+              <button id="selectFirstNBtn" class="quick-select-btn">First N</button>
+            </div>
+          </div>
+          
+          <!-- Rapid Assignment -->
+          <div class="smart-tool-group">
+            <label class="smart-tool-label">Rapid Assign:</label>
+            <div class="rapid-assign-grid">
+              <input type="number" id="rapidCount" class="rapid-count-input" placeholder="Count" min="1">
+              <select id="rapidTarget" class="rapid-target-select">
+                <option value="">To process...</option>
+              </select>
+              <button id="rapidAssignBtn" class="rapid-assign-btn">Assign</button>
+            </div>
+          </div>
+          
+          <!-- Fill to Capacity -->
+          <div class="smart-tool-group">
+            <button id="fillCapacityBtn" class="smart-tool-btn fill-capacity">
+              📊 Fill All to Capacity
+            </button>
+            <p class="smart-tool-desc">Fill all process paths to their target capacity using unassigned associates</p>
+          </div>
+        </div>
+
         <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold">Unassigned</h2>
+            <h2 class="text-sm font-semibold">
+              <span id="unassignedSiteLabel">Unassigned</span>
+            </h2>
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-600" id="unassignedCount">0</span>
               <button id="toggleUnassignedBtn" aria-expanded="false" aria-controls="unassignedStack" class="text-sm text-gray-500 border rounded p-1 hover:bg-gray-100">▾</button>
@@ -234,7 +302,7 @@
 
   <script>
     // Show file names
-    ['roster','missing'].forEach(function(id) {
+    ['roster','missing','logins'].forEach(function(id) {
       const input = document.getElementById(id);
       const label = document.getElementById('label-'+id);
       if (!input) return;
