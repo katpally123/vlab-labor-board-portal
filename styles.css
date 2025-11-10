@@ -433,6 +433,33 @@ body.published .line-row .board-card{ min-height:160px; }
 /* Floating Exit Publish button when in published mode */
 #exitPublishBtn{ position:fixed; right:18px; top:18px; z-index:80; }
 
+/* Focus Mode: clutter-free dashboard view */
+body.focus-mode nav,
+body.focus-mode .header-actions,
+body.focus-mode .header-blocks .header-block:not(.site-selector),
+body.focus-mode #summaryRow,
+body.focus-mode #codesBar,
+body.focus-mode #output,
+body.focus-mode #filterControls,
+body.focus-mode #bulkActions,
+body.focus-mode #smartAssignmentTools,
+body.focus-mode #uploadTemplatesRow,
+body.focus-mode #databaseBlock,
+body.focus-mode #historyControls,
+body.focus-mode label[for="plannedVolumeStub"],
+body.focus-mode #plannedVolumeStub,
+body.focus-mode label[for="quarter"],
+body.focus-mode #quarter {
+  display: none !important;
+}
+
+body.focus-mode #laborForm,
+body.focus-mode #leftPanel { display:none !important; }
+
+/* Keep only site selector + focus exit button visible */
+#exitFocusBtn{ position:fixed; right:18px; top:60px; z-index:80; }
+body.focus-mode #exitFocusBtn{ display:inline-flex !important; }
+
 /* Print-friendly: hide controls when printing */
 @media print{
   header, form, #leftPanel, #fileZone, #exportLogBtn, #publishBtn { display:none !important; }
@@ -1234,4 +1261,23 @@ body.published .line-row .board-card{ min-height:160px; }
 .capacity-indicator .capacity-icon {
   font-size: 10px;
 }
+
+/* === App Menu and Section Router === */
+.app-menu { position: sticky; top: 64px; z-index: 50; background:#fff; }
+.app-menu .app-menu-row { list-style:none; margin:0; padding:8px 12px; display:flex; gap:8px; flex-wrap:wrap; }
+.app-menu .menu-item { padding:6px 12px; border:1px solid #e5e7eb; background:#ffffff; border-radius:8px; font-size:13px; font-weight:600; color:#374151; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+.app-menu .menu-item:hover { background:#f3f4f6; }
+.menu-group { position:relative; }
+.menu-group .submenu { list-style:none; margin:0; padding:6px; position:absolute; top:100%; left:0; background:#fff; border:1px solid #e5e7eb; border-radius:8px; box-shadow:0 8px 20px rgba(0,0,0,0.08); display:none; min-width:160px; }
+.menu-group:hover .submenu { display:block; }
+.submenu-item { width:100%; text-align:left; padding:6px 10px; border-radius:6px; font-size:13px; font-weight:500; color:#374151; cursor:pointer; }
+.submenu-item:hover { background:#f3f4f6; }
+
+/* Quick action buttons */
+.menu-quick { padding:6px 10px; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; font-size:13px; font-weight:600; color:#1f2937; }
+.menu-quick:hover { background:#f3f4f6; }
+
+/* Section visibility */
+.app-section { display:none; }
+.app-section.active { display:block; }
 

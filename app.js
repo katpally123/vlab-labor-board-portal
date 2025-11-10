@@ -36,6 +36,36 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set initial unassigned header
   initializeUnassignedHeader();
 
+  // Lightweight section router helpers (exposed globally)
+  window.showSection = function(sectionId){
+    try{
+      document.querySelectorAll('.app-section').forEach(sec => sec.classList && sec.classList.remove('active'));
+      const target = document.getElementById(sectionId);
+      if (target) target.classList.add('active');
+    }catch(e){ console.warn('[ROUTER] showSection error', e); }
+  };
+  window.navigateToSite = function(siteCode){
+    try{
+      // Show the main board
+      window.showSection('section-site-boards');
+      // Sync selectors
+      const headerSel = document.getElementById('headerSiteSelector');
+      const formSel = document.getElementById('site');
+      if (headerSel) headerSel.value = siteCode;
+      if (formSel) formSel.value = siteCode;
+      // Switch via multi-site logic if available
+      if (typeof MULTISITE !== 'undefined' && MULTISITE && typeof MULTISITE.switchToSite === 'function'){
+        MULTISITE.switchToSite(siteCode);
+      } else {
+        // Fallback: re-apply filter and render
+        STATE.currentSite = siteCode;
+        applySiteFilter();
+        renderAllBadges();
+        setCounts();
+      }
+    }catch(e){ console.warn('[ROUTER] navigateToSite error', e); }
+  };
+
   // ===== Summary DOM refs =====
   const elDate   = document.getElementById('displayDate');
   const elDay    = document.getElementById('displayDay');
@@ -3093,6 +3123,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('  - Current site:', STATE.currentSite);
       
       simpleAutoLoad();
+      // Ensure the default visible section is the board
+      try{ window.showSection('section-site-boards'); }catch(_){ }
     } else {
       console.warn('[AUTO-LOAD] DOM not ready, retrying in 1 second...');
       setTimeout(simpleAutoLoad, 1000);
